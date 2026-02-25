@@ -10,23 +10,60 @@ class ContainerTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('id', 'sku', 'name', 'item_weight_kg', 'is_dangerous', 'is_stackable', 'can_be_unpalletized', 'moq')
-    list_filter = ('is_dangerous', 'is_stackable', 'can_be_unpalletized')
-    search_fields = ('sku', 'name')
+    # Что показываем в общем списке
+    list_display = (
+        'product_id', 'sku', 'name', 'category',
+        'qty_of_pallet', 'pallet_weight_kg',
+        'battery_flag', 'is_dangerous'
+    )
+
+    # По каким полям можно фильтровать список справа
+    list_filter = (
+        'category', 'battery_flag', 'is_dangerous',
+        'is_stackable', 'can_be_unpalletized'
+    )
+
+    # По каким полям работает строка поиска
+    search_fields = ('product_id', 'sku', 'name', 'ean')
+
+    # Группировка полей внутри карточки конкретного товара
     fieldsets = (
-        ('Основное', {
-            'fields': ('id', 'sku', 'name', 'updated_at')
+        ('Основные данные', {
+            'fields': (
+                'product_id', 'sku', 'name', 'category', 'ean', 'spec_name', 'updated_at'
+            )
         }),
-        ('Габариты единицы', {
-            'fields': (('item_length_mm', 'item_width_mm', 'item_height_mm'), 'item_weight_kg')
+        ('Габариты товара (мм)', {
+            'fields': (
+                ('product_length_mm', 'product_width_mm', 'product_height_mm'),
+            )
         }),
-        ('Паллетизация', {
-            'fields': (('pallet_length_mm', 'pallet_width_mm', 'pallet_height_mm'), 'items_per_pallet')
+        ('Мастербокс (мм)', {
+            'fields': (
+                ('masterbox_length_mm', 'masterbox_width_mm', 'masterbox_height_mm'),
+                'qty_of_masterbox'
+            )
         }),
-        ('Логистика', {
-            'fields': ('is_dangerous', 'is_stackable', 'can_be_unpalletized', 'items_per_masterbox', 'moq')
+        ('Паллета (мм и кг)', {
+            'fields': (
+                ('pallet_length_mm', 'pallet_width_mm', 'pallet_height_mm'),
+                'qty_of_pallet', 'pallet_weight_kg'
+            )
+        }),
+        ('Логистика и Правила заказа', {
+            'fields': (
+                'order_requirement',
+                ('battery_flag', 'is_dangerous', 'is_stackable', 'can_be_unpalletized'),
+            )
+        }),
+        ('Специфичные флаги', {
+            'fields': (
+                ('kj_flag', 'si_flag', 'eol_flag', 'gz_flag'),
+            ),
+            'classes': ('collapse',)
         }),
     )
+
     readonly_fields = ('updated_at',)
 
 
