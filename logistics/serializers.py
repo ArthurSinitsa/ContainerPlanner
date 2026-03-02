@@ -59,7 +59,7 @@ class CalculationRequestListSerializer(serializers.ModelSerializer):
 class CalculationRequestDetailSerializer(serializers.ModelSerializer):
     """Детальный сериализатор, включающий товары и готовую расстановку в контейнерах"""
     items = RequestItemSerializer(many=True, read_only=True)
-    results = PackingResultSerializer(many=True, read_only=True, source='packingresult_set')
+    results = PackingResultSerializer(many=True, read_only=True)
 
     class Meta:
         model = CalculationRequest

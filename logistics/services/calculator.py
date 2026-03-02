@@ -57,7 +57,8 @@ class PackingService:
                 raise ValueError(f"Оставшиеся товары слишком большие для контейнера {self.container_type.name}!")
 
             layout = []
-            used_floor_area_mm2 = 0.0
+            used_floor_area_mm2: float = 0.0
+            used_volume_m3: float = 0.0
             for packed_item in packed_bin.items:
                 orig_item = items_to_pack[packed_item.name]
 
@@ -83,16 +84,19 @@ class PackingService:
                 if pos_y == 0.0:
                     used_floor_area_mm2 += (dim_w * dim_l)
 
+                used_volume_m3 += (float(packed_item.get_volume()) / 1000000000)
+
                 del items_to_pack[packed_item.name]
 
-            volume_utilization = (packed_bin.get_volume() / packed_bin.volume) * 100
-            area_utilization = (used_floor_area_mm2 / total_floor_area_mm2) * 100 if total_floor_area_mm2 > 0 else 0
+            volume_utilization: float = (used_volume_m3 * 100) / (float(packed_bin.get_volume()) / 1000000000)
+            area_utilization: float = (used_floor_area_mm2 * 100) / total_floor_area_mm2 if total_floor_area_mm2 > 0 \
+                else 0
 
             results.append({
                 "container_index": container_index,
                 "container_type_id": self.container_type.id,
                 "total_weight_kg": float(packed_bin.get_total_weight()),
-                "total_volume_m3": float(packed_bin.get_volume() / 1_000_000_000),
+                "total_volume_m3": used_volume_m3,
                 "volume_utilization_percent": round(volume_utilization, 2),
                 "area_utilization_percent": round(area_utilization, 2),
                 "layout": layout

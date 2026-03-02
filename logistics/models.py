@@ -34,23 +34,23 @@ class Product(models.Model):
     spec_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Spec-n Name")
 
     # 2. Габариты товара (мм)
-    product_length_mm = models.FloatField(default=0, verbose_name="Length Products (mm)")
-    product_width_mm = models.FloatField(default=0, verbose_name="Width Products (mm)")
-    product_height_mm = models.FloatField(default=0, verbose_name="Height Products (mm)")
+    product_length_mm = models.FloatField(default=0, null=True, verbose_name="Length Products (mm)")
+    product_width_mm = models.FloatField(default=0, null=True, verbose_name="Width Products (mm)")
+    product_height_mm = models.FloatField(default=0, null=True, verbose_name="Height Products (mm)")
 
     # 3. Габариты Мастербокса
-    masterbox_length_mm = models.FloatField(default=0, verbose_name="Length Masterbox (mm)")
-    masterbox_width_mm = models.FloatField(default=0, verbose_name="Width Masterbox (mm)")
-    masterbox_height_mm = models.FloatField(default=0, verbose_name="Height Masterbox (mm)")
+    masterbox_length_mm = models.FloatField(default=0, null=True, verbose_name="Length Masterbox (mm)")
+    masterbox_width_mm = models.FloatField(default=0, null=True, verbose_name="Width Masterbox (mm)")
+    masterbox_height_mm = models.FloatField(default=0, null=True, verbose_name="Height Masterbox (mm)")
     qty_of_masterbox = models.PositiveIntegerField(default=1, verbose_name="Qty of master box")
     masterbox_weight_kg = models.FloatField(null=True, blank=True, verbose_name="Вес мастербокса (кг)")
 
     # 4. Габариты и Вес Паллеты
-    pallet_length_mm = models.FloatField(default=0, verbose_name="Length Pallet (mm)")
-    pallet_width_mm = models.FloatField(default=0, verbose_name="Width Pallet (mm)")
-    pallet_height_mm = models.FloatField(default=0, verbose_name="Height Pallet (mm)")
+    pallet_length_mm = models.FloatField(default=0, null=True, verbose_name="Length Pallet (mm)")
+    pallet_width_mm = models.FloatField(default=0, null=True, verbose_name="Width Pallet (mm)")
+    pallet_height_mm = models.FloatField(default=0, null=True, verbose_name="Height Pallet (mm)")
     qty_of_pallet = models.PositiveIntegerField(default=1, verbose_name="Qty of pallet")
-    pallet_weight_kg = models.FloatField(default=0, verbose_name="Pallet Weight (kg)")
+    pallet_weight_kg = models.FloatField(default=0, null=True, verbose_name="Pallet Weight (kg)")
 
     # 5. Логистические правила и флаги
     order_requirement = models.CharField(max_length=50, blank=True, null=True, verbose_name="Order requirement")
@@ -80,11 +80,20 @@ class CalculationRequest(models.Model):
     Заголовок запроса на расчет.
     Хранит исходный файл (если был) и мета-информацию.
     """
+    STATUS_CHOICES = (
+        ('PENDING', 'В очереди'),
+        ('PROCESSING', 'Рассчитывается'),
+        ('COMPLETED', 'Завершено'),
+        ('FAILED', 'Ошибка'),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата расчета")
     source_file = models.FileField(upload_to='requests_xls/', null=True, blank=True,
                                    verbose_name="Исходный файл заказа")
     description = models.CharField(max_length=255, blank=True, verbose_name="Примечание")
-
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', verbose_name="Статус")
+    task_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="ID задачи Celery")
+    error_message = models.TextField(blank=True, null=True, verbose_name="Сообщение об ошибке")
     class Meta:
         verbose_name = "Запрос на расчет"
         verbose_name_plural = "Запросы на расчет"

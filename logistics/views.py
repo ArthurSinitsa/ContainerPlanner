@@ -12,6 +12,7 @@ from .serializers import (ProductSerializer, FileUploadSerializer, ContainerType
 from .services.loader import GoogleSheetsLoader, FileLoader
 from .services.preprocessor import RequestPreprocessor
 from .services.calculator import PackingService
+from .tasks import run_packing_task
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -26,7 +27,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         Эндпоинт для запуска синхронизации с Google Sheets.
         POST /api/products/sync-google/
         """
-        creds_path = os.path.join(settings.BASE_DIR, '/services/google_credentials.json')
+        creds_path = os.path.join(settings.BASE_DIR, 'logistics/services/google_credentials.json')
 
         sheet_url = 'https://docs.google.com/spreadsheets/d/1XIk7mO6DLrg5XtK8UtxUkcxei4tnAUMXbh3Y9G350rw/edit'
 
@@ -94,51 +95,51 @@ class CalculationViewSet(viewsets.GenericViewSet):
     API для создания заявок на расчёт контейнеров.
     """
     queryset = CalculationRequest.objects.all()
-    @staticmethod
-    def _run_packing_pipeline(calc_request: CalculationRequest, container_type: ContainerType) -> Response:
-        """
-        Вспомогательный метод.
-        Запускает общую логику препроцессинга, 3D-упаковки и сохранения результатов.
-        """
-        try:
-            # 1. Препроцессинг (перевод штук в паллеты/коробки)
-            preprocessor = RequestPreprocessor(calc_request.id)
-            packable_items, warnings = preprocessor.process()
-
-            # 2. 3D Упаковка (передаем выбранный пользователем контейнер)
-            calculator = PackingService(packable_items, container_type)
-            packing_results_data = calculator.calculate()
-
-            # 3. Сохраняем результаты в БД
-            packing_result_objects = []
-            for res in packing_results_data:
-                packing_result_objects.append(PackingResult(
-                    calculation_request=calc_request,
-                    container_number=res['container_index'],
-                    container_type_id=res['container_type_id'],
-                    total_weight_kg=res['total_weight_kg'],
-                    total_volume_m3=res['total_volume_m3'],
-                    volume_utilization_percent=res['volume_utilization_percent'],
-                    area_utilization_percent=res['area_utilization_percent'],
-                    packing_layout=res['layout']
-                ))
-
-            PackingResult.objects.bulk_create(packing_result_objects)
-
-            return Response({
-                "message": "Расчет успешно выполнен",
-                "request_id": calc_request.id,
-                "containers_used": len(packing_results_data),
-                "warnings": warnings
-            }, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            # Если математика упала, удаляем созданную заявку, чтобы не оставлять мусор в БД
-            calc_request.delete()
-            return Response(
-                {"error": f"Ошибка при расчете 3D упаковки: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+    # @staticmethod
+    # def _run_packing_pipeline(calc_request: CalculationRequest, container_type: ContainerType) -> Response:
+    #     """
+    #     Вспомогательный метод.
+    #     Запускает общую логику препроцессинга, 3D-упаковки и сохранения результатов.
+    #     """
+    #     try:
+    #         # 1. Препроцессинг (перевод штук в паллеты/коробки)
+    #         preprocessor = RequestPreprocessor(calc_request.id)
+    #         packable_items, warnings = preprocessor.process()
+    #
+    #         # 2. 3D Упаковка (передаем выбранный пользователем контейнер)
+    #         calculator = PackingService(packable_items, container_type)
+    #         packing_results_data = calculator.calculate()
+    #
+    #         # 3. Сохраняем результаты в БД
+    #         packing_result_objects = []
+    #         for res in packing_results_data:
+    #             packing_result_objects.append(PackingResult(
+    #                 calculation_request=calc_request,
+    #                 container_number=res['container_index'],
+    #                 container_type_id=res['container_type_id'],
+    #                 total_weight_kg=res['total_weight_kg'],
+    #                 total_volume_m3=res['total_volume_m3'],
+    #                 volume_utilization_percent=res['volume_utilization_percent'],
+    #                 area_utilization_percent=res['area_utilization_percent'],
+    #                 packing_layout=res['layout']
+    #             ))
+    #
+    #         PackingResult.objects.bulk_create(packing_result_objects)
+    #
+    #         return Response({
+    #             "message": "Расчет успешно выполнен",
+    #             "request_id": calc_request.id,
+    #             "containers_used": len(packing_results_data),
+    #             "warnings": warnings
+    #         }, status=status.HTTP_201_CREATED)
+    #
+    #     except Exception as e:
+    #         # Если математика упала, удаляем созданную заявку, чтобы не оставлять мусор в БД
+    #         calc_request.delete()
+    #         return Response(
+    #             {"error": f"Ошибка при расчете 3D упаковки: {str(e)}"},
+    #             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    #         )
 
     @action(detail=False, methods=['post'], serializer_class=CalculationRequestCreateSerializer)
     def manual(self, request):
@@ -176,7 +177,13 @@ class CalculationViewSet(viewsets.GenericViewSet):
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            return self._run_packing_pipeline(calc_request, container_type)
+            task = run_packing_task.delay(calc_request.id, container_type.id)
+
+            return Response({
+                "message": "Расчет добавлен в очередь и выполняется в фоне.",
+                "request_id": calc_request.id,
+                "task_id": task.id
+            }, status=status.HTTP_202_ACCEPTED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -235,7 +242,14 @@ class CalculationViewSet(viewsets.GenericViewSet):
             except Exception as e:
                 return Response({"error": f"Ошибка обработки файла: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-            return self._run_packing_pipeline(calc_request, container_type)
+            task = run_packing_task.delay(calc_request.id, container_type.id)
+
+            return Response({
+                "message": "Расчет добавлен в очередь и выполняется в фоне.",
+                "request_id": calc_request.id,
+                "task_id": task.id,
+                "status_url": f"/api/calculate/{calc_request.id}/status/"
+            }, status=status.HTTP_202_ACCEPTED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -255,7 +269,7 @@ class CalculationViewSet(viewsets.GenericViewSet):
         """
         # Используем prefetch_related, чтобы достать все связанные товары и результаты
         # за 1-2 SQL запроса, а не спамить базу сотнями запросов
-        queryset = CalculationRequest.objects.prefetch_related('items__product', 'packingresult_set')
+        queryset = CalculationRequest.objects.prefetch_related('items__product', 'results')
 
         try:
             calc_request = queryset.get(pk=pk)
@@ -264,3 +278,21 @@ class CalculationViewSet(viewsets.GenericViewSet):
 
         serializer = CalculationRequestDetailSerializer(calc_request)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def status(self, request, pk=None):
+        """
+        GET /api/calculate/{id}/status/
+        Возвращает текущий статус расчета.
+        """
+        try:
+            calc_request = CalculationRequest.objects.get(pk=pk)
+            return Response({
+                "id": calc_request.id,
+                "status": calc_request.status,
+                "status_display": calc_request.get_status_display(),
+                "task_id": calc_request.task_id,
+                "error_message": calc_request.error_message
+            })
+        except CalculationRequest.DoesNotExist:
+            return Response({"error": "Заявка не найдена"}, status=status.HTTP_404_NOT_FOUND)

@@ -14,5 +14,48 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  redis:
+    image: redis
+    container_name: logistics_redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  api:
+    build: .
+    container_name: logistics_api
+    command: > 
+      sh -c "python manage.py makemigrations && python manage.py migrate && 
+      gunicorn ContainerPlanner.wsgi:application -c gunicorn.conf.py"
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=ContainerPlanner.settings
+      - DB_HOST=db
+      - DB_NAME=logistics_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    restart: always
+
+  celery:
+    build: .
+    container_name: logistics_celery
+    command: celery -A ContainerPlanner worker -l info
+    environment:
+      - DJANGO_SETTINGS_MODULE=ContainerPlanner.settings
+      - DB_HOST=db
+      - DB_NAME=logistics_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    restart: always
+
 volumes:
   postgres_data:

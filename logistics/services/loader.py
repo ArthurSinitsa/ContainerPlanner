@@ -4,6 +4,19 @@ import math
 from django.db import transaction
 from logistics.models import Product
 
+def clean_float(value, multiplier=1.0) -> float|None:
+    """Безопасно конвертирует значение в float. Если мусор - возвращает None."""
+    # pd.to_numeric с errors='coerce' превратит любой нечитаемый текст в NaN
+    val = pd.to_numeric(value, errors='coerce')
+    if pd.isna(val) or math.isnan(val):
+        return None
+    return float(val) * multiplier
+
+def clean_int(value) -> int|None:
+    """Безопасно конвертирует значение в int. Если мусор - возвращает None."""
+    val = clean_float(value)
+    return int(val) if val is not None else None
+
 class BaseProductLoader:
     def get_dataframe(self) -> pd.DataFrame:
         raise NotImplementedError
@@ -36,27 +49,35 @@ class BaseProductLoader:
             raw_battery = str(row.get('Battery', '')).strip().lower()
             battery_bool = raw_battery in ['yes', 'true', '1', 'y', 'да', '+']
 
+
             product_data = {
                 'sku': str(row.get('SKU', '')).strip() if pd.notna(row.get('SKU')) else None,
                 'name': str(row.get('Name', '')).strip() if pd.notna(row.get('Name')) else '',
+                'spec_name': str(row.get('Spec-n Name', '')).strip() if pd.notna(row.get('Spec-n Name')) else '',
                 'category': str(row.get('Category', '')).strip() if pd.notna(row.get('Category')) else '',
                 'ean': ean_val,
+                'si_flag':str(row.get('SI', '')).strip() if pd.notna(row.get('SI')) else '',
+                'eol_flag': str(row.get('EOL', '')).strip() if pd.notna(row.get('EOL')) else None,
+                'kj_flag': str(row.get('k/j', '')).strip() if pd.notna(row.get('k/j')) else None,
 
-                'product_length_mm': float(row.get('Length Products dimension (mm)', 0) or 0),
-                'product_width_mm': float(row.get('Width Products dimension (mm)', 0) or 0),
-                'product_height_mm': float(row.get('Height Products dimension (mm)', 0) or 0),
+                # Габариты продукта
+                'product_length_mm': clean_float(row.get('Length Products dimension (mm)')),
+                'product_width_mm': clean_float(row.get('Width Products dimension (mm)')),
+                'product_height_mm': clean_float(row.get('Height Products dimension (mm)')),
 
-                'masterbox_length_mm': float(row.get('Length Masterbox dimension (m)', 0) or 0) * 1000,
-                'masterbox_width_mm': float(row.get('Width Masterbox dimension (m)', 0) or 0) * 1000,
-                'masterbox_height_mm': float(row.get('Height Masterbox dimension (m)', 0) or 0) * 1000,
-                'masterbox_weight_kg': float(row.get('Masterbox Weight', 0) or 0),
-                'qty_of_masterbox': int(row.get('Qty of master box', 1) or 1),
+                # Габариты мастербокса
+                'masterbox_length_mm': clean_float(row.get('Length Masterbox dimension (m)'), multiplier=1000),
+                'masterbox_width_mm': clean_float(row.get('Width Masterbox dimension (m)'), multiplier=1000),
+                'masterbox_height_mm': clean_float(row.get('Height Masterbox dimension (m)'), multiplier=1000),
+                'masterbox_weight_kg': clean_float(row.get('Masterbox Weight')) or 0,
+                'qty_of_masterbox': clean_int(row.get('Qty of masterbox')) or 1,
 
-                'pallet_length_mm': float(row.get('Length Pallet dimension (including goods) (m)', 0) or 0) * 1000,
-                'pallet_width_mm': float(row.get('Width Pallet dimension (including goods) (m)', 0) or 0) * 1000,
-                'pallet_height_mm': float(row.get('Height Pallet dimension (including goods) (m)', 0) or 0) * 1000,
-                'qty_of_pallet': int(row.get('Qty of pallet', 1) or 1),
-                'pallet_weight_kg': float(row.get('Pallet Weight', 0) or 0),
+                # Габариты паллеты
+                'pallet_length_mm': clean_float(row.get('Length Pallet dimension (m)'), multiplier=1000),
+                'pallet_width_mm': clean_float(row.get('Width Pallet dimension (m)'), multiplier=1000),
+                'pallet_height_mm': clean_float(row.get('Height Pallet dimension (m)'), multiplier=1000),
+                'qty_of_pallet': clean_int(row.get('Qty of pallet')) or 1,
+                'pallet_weight_kg': clean_float(row.get('Pallet Weight')) or 0,
 
                 'order_requirement': str(row.get('Order requirement', '')).strip() if pd.notna(row.get('Order requirement')) else '',
                 'battery_flag': battery_bool,
