@@ -24,8 +24,23 @@ class RequestPreprocessor:
             req_qty = req_item.quantity
 
             req_type = str(prod.order_requirement).strip().lower()
+            req_category = str(prod.category).strip().lower()
 
-            if req_type in ['order by pallet', 'qty by pallet']:
+            if req_category in ['tv',]:
+                unit_type = 'pallet'
+                qty_in_unit = prod.qty_of_masterbox or 1
+                length = prod.pallet_length_mm
+                width = prod.pallet_width_mm
+                height = prod.pallet_height_mm
+                weight = prod.pallet_weight_kg
+            elif req_category in ['monitor',]:
+                unit_type = 'product'
+                qty_in_unit = 1
+                length = prod.product_length_mm
+                width = prod.product_width_mm
+                height = prod.product_height_mm
+                weight = (prod.masterbox_weight_kg / prod.qty_of_masterbox)
+            elif req_type in ['order by pallet', 'qty by pallet']:
                 unit_type = 'pallet'
                 qty_in_unit = prod.qty_of_pallet or 1
                 length = prod.pallet_length_mm
