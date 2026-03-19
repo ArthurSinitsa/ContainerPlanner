@@ -7,7 +7,7 @@ class ProductSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Product
-        fields = '__all__' # Берем абсолютно все поля из модели
+        fields = '__all__'
 
 
 class FileUploadSerializer(serializers.Serializer):
@@ -52,9 +52,10 @@ class PackingResultSerializer(serializers.ModelSerializer):
 
 class CalculationRequestListSerializer(serializers.ModelSerializer):
     """Краткий сериализатор для списка заявок (без тяжелой 3D-геометрии)"""
+
     class Meta:
         model = CalculationRequest
-        fields = ['id', 'created_at', 'description', 'source_file']
+        fields = ['id', 'created_at', 'status', 'description', 'source_file',]
 
 class CalculationRequestDetailSerializer(serializers.ModelSerializer):
     """Детальный сериализатор, включающий товары и готовую расстановку в контейнерах"""
@@ -63,4 +64,4 @@ class CalculationRequestDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CalculationRequest
-        fields = ['id', 'created_at', 'description', 'source_file', 'items', 'results']
+        fields = ['id', 'created_at', 'status', 'description', 'source_file', 'items', 'results']

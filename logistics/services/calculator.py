@@ -28,14 +28,13 @@ class PackingService:
             packer = Packer()
 
             # Добавляем 1 контейнер (Bin). В py3dbp порядок: Имя, Ширина(W), Высота(H), Глубина(D), Вес(W)
-            # Внимание: обычно D - это длина (length), H - высота (height).
             bin_name = f"{self.container_type.name}-{container_index}"
             packer.add_bin(Bin(
                 bin_name,
                 self.container_type.width_mm,
                 self.container_type.height_mm,
                 self.container_type.length_mm,
-                self.container_type.max_weight_kg or 999999 # Если вес не указан, ставим огромный
+                self.container_type.max_weight_kg or 999999
             ))
 
             for uid, item in items_to_pack.items():
@@ -49,7 +48,7 @@ class PackingService:
                     weight
                 ))
 
-            packer.pack()
+            packer.pack(bigger_first=True)
 
             packed_bin = packer.bins[0]
 
@@ -62,21 +61,24 @@ class PackingService:
             for packed_item in packed_bin.items:
                 orig_item = items_to_pack[packed_item.name]
 
+                pos_x = float(packed_item.position[0])
                 pos_y = float(packed_item.position[1])
+                pos_z = float(packed_item.position[2])
                 dim_w = float(packed_item.get_dimension()[0])
+                dim_h = float(packed_item.get_dimension()[1])
                 dim_l = float(packed_item.get_dimension()[2])
 
                 layout.append({
                     "product_id": orig_item["product_id"],
                     "type": orig_item["item_type"],
                     "position": {
-                        "x": float(packed_item.position[0]),
+                        "x": pos_x,
                         "y": pos_y,
-                        "z": float(packed_item.position[2])
+                        "z": pos_z
                     },
                     "dimensions": {
                         "width": dim_w,
-                        "height": float(packed_item.get_dimension()[1]),
+                        "height": dim_h,
                         "length": dim_l
                     }
                 })
@@ -89,8 +91,8 @@ class PackingService:
                 del items_to_pack[packed_item.name]
 
             volume_utilization: float = (used_volume_m3 * 100) / (float(packed_bin.get_volume()) / 1000000000)
-            area_utilization: float = (used_floor_area_mm2 * 100) / total_floor_area_mm2 if total_floor_area_mm2 > 0 \
-                else 0
+            area_utilization: float = (used_floor_area_mm2 * 100) / (total_floor_area_mm2 if total_floor_area_mm2 > 0
+                                                                     else 0)
 
             results.append({
                 "container_index": container_index,
