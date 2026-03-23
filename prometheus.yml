@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # 1. Метрики самого Django
+  - job_name: 'django_api'
+    static_configs:
+      - targets: ['api:8000'] # Имя сервиса из docker-compose
+
+  # 2. Метрики базы данных PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # 3. Метрики железа сервера (CPU, RAM, Диск)
+  - job_name: 'server_hardware'
+    static_configs:
+      - targets: ['node-exporter:9100']

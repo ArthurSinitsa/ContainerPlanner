@@ -57,5 +57,51 @@ services:
       - redis
     restart: always
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: logistics_prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml # Подкидываем наш конфиг
+      - prometheus_data:/prometheus # Сохраняем историю метрик
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: logistics_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin # Пароль для входа (логин тоже admin)
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: always
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: logistics_pg_exporter
+    environment:
+      # Подключаемся к нашей БД для сбора метрик
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@db:5432/logistics_db?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      - db
+    restart: always
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: logistics_node_exporter
+    ports:
+      - "9100:9100"
+    restart: always
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

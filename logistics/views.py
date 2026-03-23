@@ -5,13 +5,11 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Product, ContainerType, RequestItem, PackingResult
+from .models import Product, ContainerType, RequestItem
 from .serializers import (ProductSerializer, FileUploadSerializer, ContainerTypeSerializer,
                           CalculationFileUploadSerializer, CalculationRequest, CalculationRequestCreateSerializer,
                           CalculationRequestListSerializer, CalculationRequestDetailSerializer)
 from .services.loader import GoogleSheetsLoader, FileLoader
-from .services.preprocessor import RequestPreprocessor
-from .services.calculator import PackingService
 from .tasks import run_packing_task
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):

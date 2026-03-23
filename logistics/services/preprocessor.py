@@ -1,5 +1,6 @@
 import math
-from logistics.models import CalculationRequest
+from logistics.models import CalculationRequest, Product
+
 
 class RequestPreprocessor:
     """
@@ -11,6 +12,18 @@ class RequestPreprocessor:
     def __init__(self, calculation_request_id: int):
         self.request_id = calculation_request_id
         self.calc_request = CalculationRequest.objects.prefetch_related('items__product').get(id=calculation_request_id)
+
+    def _get_grouping_key(self, prod: Product):
+        """
+        Генерирует уникальный ключ для группировки товаров.
+        """
+        return (
+            # Правило 1: Батарейные товары едут отдельно от обычных
+            getattr(prod, 'battery_flag', False),
+
+            # Правило 2 (на будущее): Опасные грузы отдельно
+            # getattr(prod, 'is_dangerous', False),
+        )
 
     def process(self):
         """
@@ -55,6 +68,8 @@ class RequestPreprocessor:
                 height = prod.masterbox_height_mm
                 weight = prod.masterbox_weight_kg if prod.masterbox_weight_kg else 0.1
 
+            group_key = self._get_grouping_key(prod)
+
             # 2. Считаем количество физических юнитов
             num_units = math.ceil(req_qty / qty_in_unit)
 
@@ -76,7 +91,8 @@ class RequestPreprocessor:
 
                     'is_dangerous': prod.is_dangerous or False,
                     'is_stackable': prod.is_stackable if prod.is_stackable is not None else True,
-                    'can_be_unpalletized': prod.can_be_unpalletized or False
+                    'can_be_unpalletized': prod.can_be_unpalletized or False,
+                    'group_key': group_key,
                 })
 
         return packable_items, warnings
