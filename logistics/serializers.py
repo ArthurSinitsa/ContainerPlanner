@@ -65,3 +65,17 @@ class CalculationRequestDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = CalculationRequest
         fields = ['id', 'created_at', 'status', 'description', 'source_file', 'items', 'results']
+
+class CalculationStatusResponseSerializer(serializers.Serializer):
+    """Сериализатор исключительно для документации ответа эндпоинта status"""
+    id = serializers.IntegerField(help_text="ID заявки")
+    status = serializers.CharField(help_text="Системный статус (PENDING, PROCESSING, etc)")
+    status_display = serializers.CharField(help_text="Человекочитаемый статус")
+    task_id = serializers.CharField(allow_null=True, required=False, help_text="ID задачи в Celery")
+    error_message = serializers.CharField(allow_null=True, required=False, help_text="Текст ошибки, если есть")
+
+class SyncResponseSerializer(serializers.Serializer):
+    """Сериализатор для документации ответа синхронизации"""
+    message = serializers.CharField()
+    created = serializers.IntegerField()
+    updated = serializers.IntegerField()

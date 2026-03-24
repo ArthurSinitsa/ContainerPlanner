@@ -4,11 +4,13 @@ from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
 
 from .models import Product, ContainerType, RequestItem
 from .serializers import (ProductSerializer, FileUploadSerializer, ContainerTypeSerializer,
                           CalculationFileUploadSerializer, CalculationRequest, CalculationRequestCreateSerializer,
-                          CalculationRequestListSerializer, CalculationRequestDetailSerializer)
+                          CalculationRequestListSerializer, CalculationRequestDetailSerializer,
+                          CalculationStatusResponseSerializer, SyncResponseSerializer)
 from .services.loader import GoogleSheetsLoader, FileLoader
 from .tasks import run_packing_task
 
@@ -19,6 +21,11 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects.all().order_by('product_id')
     serializer_class = ProductSerializer
 
+    @extend_schema(
+        summary="Синхронизация с Google Sheets",
+        description="Скачивает данные из Google таблицы и обновляет базу товаров.",
+        responses={200: SyncResponseSerializer}
+    )
     @action(detail=False, methods=['post'], url_path='sync-google')
     def sync_google(self, request):
         """
@@ -52,6 +59,11 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    @extend_schema(
+        summary="Синхронизация с файлом (.xlsx/.csv)",
+        description="Читает данные из таблицы в файле и обновляет базу товаров.",
+        responses={200: SyncResponseSerializer}
+    )
     @action(detail=False, methods=['post'], url_path='sync-excel', serializer_class=FileUploadSerializer)
     def sync_file(self, request):
         """
@@ -139,6 +151,21 @@ class CalculationViewSet(viewsets.GenericViewSet):
     #             status=status.HTTP_500_INTERNAL_SERVER_ERROR
     #         )
 
+    @extend_schema(
+        summary="Создать заявку вручную",
+        description="Создает заявку на основе переданного JSON списка товаров и запускает фоновый расчет.",
+        request=CalculationRequestCreateSerializer,
+        responses={
+            202: OpenApiResponse(response={
+                "message": "Расчет добавлен в очередь и выполняется в фоне.",
+                "request_id": 29,
+                "task_id": "00e397fd-bff7-4337-a203-723a8da469e8",
+                "status_url": f"/api/calculate/29/status/"
+            }, description="Заявка принята. Расчет начался."),
+            400: OpenApiResponse(response={"error": "Error message"},
+                                 description="Ошибка валидации данных либо не найден контейнер")
+        }
+    )
     @action(detail=False, methods=['post'], serializer_class=CalculationRequestCreateSerializer)
     def manual(self, request):
         """Создание заявки вручную передачей JSON."""
@@ -180,11 +207,27 @@ class CalculationViewSet(viewsets.GenericViewSet):
             return Response({
                 "message": "Расчет добавлен в очередь и выполняется в фоне.",
                 "request_id": calc_request.id,
-                "task_id": task.id
+                "task_id": task.id,
+                "status_url": f"/api/calculate/{calc_request.id}/status/"
             }, status=status.HTTP_202_ACCEPTED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        summary="Загрузить заявку через файл",
+        description="Создает заявку из загруженного Excel (.xlsx) или CSV файла и запускает расчет в фоне.",
+        request=CalculationFileUploadSerializer,
+        responses={
+            202: OpenApiResponse(response={
+                "message": "Расчет добавлен в очередь и выполняется в фоне.",
+                "request_id": 29,
+                "task_id": "00e397fd-bff7-4337-a203-723a8da469e8",
+                "status_url": f"/api/calculate/29/status/"
+            }, description="Файл загружен. Расчет начался."),
+            400: OpenApiResponse(response={"error": "Error message"},
+                                 description="Ошибка валидации данных, обработки файла либо не найден контейнер/товар в базе")
+        }
+    )
     @action(detail=False, methods=['post'], serializer_class=CalculationFileUploadSerializer)
     def upload_file(self, request):
         """Создание заявки путем загрузки .xlsx или .csv файла."""
@@ -251,6 +294,11 @@ class CalculationViewSet(viewsets.GenericViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        summary="Получить список заявок",
+        description="Возвращает историю всех расчетов (без детальной геометрии, чтобы не грузить сеть).",
+        responses={200: CalculationRequestListSerializer(many=True)}
+    )
     def list(self, request):
         """
         GET /api/calculate/
@@ -260,6 +308,14 @@ class CalculationViewSet(viewsets.GenericViewSet):
         serializer = CalculationRequestListSerializer(queryset, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        summary="Детали заявки и расстановка",
+        description="Возвращает полную детализацию заявки по ID вместе с результатами упаковки (3D-координатами).",
+        responses={
+            200: CalculationRequestDetailSerializer,
+            404: OpenApiResponse(response={"error": "Заявка с id 29 не найдена"}, description="Заявка не найдена")
+        }
+    )
     def retrieve(self, request, pk=None):
         """
         GET /api/calculate/{id}/
@@ -272,11 +328,19 @@ class CalculationViewSet(viewsets.GenericViewSet):
         try:
             calc_request = queryset.get(pk=pk)
         except CalculationRequest.DoesNotExist:
-            return Response({"error": "Заявка не найдена"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": f"Заявка с id {pk} не найдена"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = CalculationRequestDetailSerializer(calc_request)
         return Response(serializer.data)
 
+    @extend_schema(
+        summary="Узнать статус расчета",
+        description="Возвращает текущий статус фоновой задачи упаковки.",
+        responses={
+            200: CalculationStatusResponseSerializer,
+            404: OpenApiResponse(response={"error": "Заявка не найдена"}, description="Заявка не найдена")
+        }
+    )
     @action(detail=True, methods=['get'])
     def status(self, request, pk=None):
         """
