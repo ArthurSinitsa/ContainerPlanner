@@ -1,10 +1,10 @@
 import os
 from django.conf import settings
 from django.db import transaction
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample, inline_serializer
 
 from .models import Product, ContainerType, RequestItem
 from .serializers import (ProductSerializer, FileUploadSerializer, ContainerTypeSerializer,
@@ -24,7 +24,45 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     @extend_schema(
         summary="Синхронизация с Google Sheets",
         description="Скачивает данные из Google таблицы и обновляет базу товаров.",
-        responses={200: SyncResponseSerializer}
+        responses={200: SyncResponseSerializer, 400: SyncResponseSerializer, 500: SyncResponseSerializer},
+        examples=[
+            OpenApiExample(
+                name="Синхронизация выполнена успешно",
+                summary="Синхронизация выполнена успешно",
+                value={
+                    "status":"SUCCESS",
+                    "message": "Синхронизация с Google Sheets прошла успешно!",
+                    "created": 888,
+                    "updated": 888
+                },
+                status_codes=["200"],
+                response_only=True,
+            ),
+            OpenApiExample(
+                name="Ошибка",
+                summary="Ошибка при синхронизации (400)",
+                value={
+                    "status":"ERROR",
+                    "message": "Ошибка при синхронизации: [описание ошибки]",
+                    "created": 0,
+                    "updated": 0
+                },
+                status_codes=["400"],
+                response_only=True,
+            ),
+            OpenApiExample(
+                name="Ошибка",
+                summary="Ошибка подключения к Google sheets (500)",
+                value={
+                    "status":"ERROR",
+                    "message": "Файл google_credentials.json не найден в корне проекта.",
+                    "created": 0,
+                    "updated": 0
+                },
+                status_codes=["500"],
+                response_only=True,
+            )
+        ]
     )
     @action(detail=False, methods=['post'], url_path='sync-google')
     def sync_google(self, request):
@@ -39,30 +77,61 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         sheet = 'Spravka'
 
         if not os.path.exists(creds_path):
-            return Response(
-                {"error": "Файл google_credentials.json не найден в корне проекта."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({
+                    "status":"ERROR",
+                    "message": "Файл google_credentials.json не найден в корне проекта.",
+                    "created": 0,
+                    "updated": 0
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         try:
             loader = GoogleSheetsLoader(creds_path, sheet_url, sheet)
             created, updated = loader.load_to_db()
             return Response({
+                "status":"SUCCESS",
                 "message": "Синхронизация с Google Sheets прошла успешно!",
                 "created": created,
                 "updated": updated
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response(
-                {"error": f"Ошибка при синхронизации: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({
+                    "status":"ERROR",
+                    "message": f"Ошибка при синхронизации: {str(e)}",
+                    "created": 0,
+                    "updated": 0
+                }, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
         summary="Синхронизация с файлом (.xlsx/.csv)",
         description="Читает данные из таблицы в файле и обновляет базу товаров.",
-        responses={200: SyncResponseSerializer}
+        responses={200: SyncResponseSerializer, 400: SyncResponseSerializer},
+        examples=[
+            OpenApiExample(
+                name="Синхронизация выполнена успешно",
+                summary="Синхронизация выполнена успешно",
+                value={
+                    "status":"SUCCESS",
+                    "message": "Данные из Excel успешно загружены!",
+                    "created": 888,
+                    "updated": 888
+                },
+                status_codes=["200"],
+                response_only=True,
+            ),
+            OpenApiExample(
+                name="Ошибка",
+                summary="Ошибка (400)",
+                value={
+                    "status":"ERROR",
+                    "message": f"Ошибка при обработке файла: [описание ошибки]",
+                    "created": 0,
+                    "updated": 0
+                },
+                status_codes=["400"],
+                response_only=True,
+            )
+        ]
     )
     @action(detail=False, methods=['post'], url_path='sync-excel', serializer_class=FileUploadSerializer)
     def sync_file(self, request):
@@ -79,6 +148,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
                 loader = FileLoader(uploaded_file)
                 created, updated = loader.load_to_db()
                 return Response({
+                    "status":"SUCCESS",
                     "message": "Данные из Excel успешно загружены!",
                     "created": created,
                     "updated": updated
@@ -86,7 +156,12 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
 
             except Exception as e:
                 return Response(
-                    {"error": f"Ошибка при обработке файла: {str(e)}"},
+                    {
+                        "status":"ERROR",
+                        "message": f"Ошибка при обработке файла: {str(e)}",
+                        "created": 0,
+                        "updated": 0
+                    },
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -105,66 +180,55 @@ class CalculationViewSet(viewsets.GenericViewSet):
     API для создания заявок на расчёт контейнеров.
     """
     queryset = CalculationRequest.objects.all()
-    # @staticmethod
-    # def _run_packing_pipeline(calc_request: CalculationRequest, container_type: ContainerType) -> Response:
-    #     """
-    #     Вспомогательный метод.
-    #     Запускает общую логику препроцессинга, 3D-упаковки и сохранения результатов.
-    #     """
-    #     try:
-    #         # 1. Препроцессинг (перевод штук в паллеты/коробки)
-    #         preprocessor = RequestPreprocessor(calc_request.id)
-    #         packable_items, warnings = preprocessor.process()
-    #
-    #         # 2. 3D Упаковка (передаем выбранный пользователем контейнер)
-    #         calculator = PackingService(packable_items, container_type)
-    #         packing_results_data = calculator.calculate()
-    #
-    #         # 3. Сохраняем результаты в БД
-    #         packing_result_objects = []
-    #         for res in packing_results_data:
-    #             packing_result_objects.append(PackingResult(
-    #                 calculation_request=calc_request,
-    #                 container_number=res['container_index'],
-    #                 container_type_id=res['container_type_id'],
-    #                 total_weight_kg=res['total_weight_kg'],
-    #                 total_volume_m3=res['total_volume_m3'],
-    #                 volume_utilization_percent=res['volume_utilization_percent'],
-    #                 area_utilization_percent=res['area_utilization_percent'],
-    #                 packing_layout=res['layout']
-    #             ))
-    #
-    #         PackingResult.objects.bulk_create(packing_result_objects)
-    #
-    #         return Response({
-    #             "message": "Расчет успешно выполнен",
-    #             "request_id": calc_request.id,
-    #             "containers_used": len(packing_results_data),
-    #             "warnings": warnings
-    #         }, status=status.HTTP_201_CREATED)
-    #
-    #     except Exception as e:
-    #         # Если математика упала, удаляем созданную заявку, чтобы не оставлять мусор в БД
-    #         calc_request.delete()
-    #         return Response(
-    #             {"error": f"Ошибка при расчете 3D упаковки: {str(e)}"},
-    #             status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    #         )
 
     @extend_schema(
         summary="Создать заявку вручную",
-        description="Создает заявку на основе переданного JSON списка товаров и запускает фоновый расчет.",
+        description="Создает заявку на основе переданного JSON списка товаров и запускает расчет в фоне.",
         request=CalculationRequestCreateSerializer,
         responses={
-            202: OpenApiResponse(response={
-                "message": "Расчет добавлен в очередь и выполняется в фоне.",
-                "request_id": 29,
-                "task_id": "00e397fd-bff7-4337-a203-723a8da469e8",
-                "status_url": f"/api/calculate/29/status/"
-            }, description="Заявка принята. Расчет начался."),
-            400: OpenApiResponse(response={"error": "Error message"},
-                                 description="Ошибка валидации данных либо не найден контейнер")
-        }
+            202: OpenApiResponse(
+                response=inline_serializer(
+                    name='FileUploadSuccessResponse',
+                    fields={
+                        'message': serializers.CharField(),
+                        'request_id': serializers.IntegerField(),
+                        'task_id': serializers.UUIDField(),
+                        'status_url': serializers.CharField(),
+                    }
+                ),
+                description="Файл загружен. Расчет начался."
+            ),
+            400: OpenApiResponse(
+                response=inline_serializer(
+                    name='FileUploadErrorResponse',
+                    fields={
+                        'error': serializers.CharField()
+                    }
+                ),
+                description="Ошибка валидации данных, обработки файла либо не найден контейнер/товар в базе"
+            )
+        },
+        examples=[
+            OpenApiExample(
+                name="Успешный старт расчета",
+                summary="Заявка успешно создана (202)",
+                value={
+                    "message": "Расчет добавлен в очередь и выполняется в фоне.",
+                    "request_id": 29,
+                    "task_id": "00e397fd-bff7-4337-a203-723a8da469e8",
+                    "status_url": "/api/calculate/29/status/"
+                },
+                status_codes=["202"],
+                response_only=True,
+            ),
+            OpenApiExample(
+                name="Ошибка валидации данных либо неверно указан контейнер",
+                summary="Ошибка (400)",
+                value={"error": "Контейнер с ID 29 не найден"},
+                status_codes=["400"],
+                response_only=True,
+            )
+        ]
     )
     @action(detail=False, methods=['post'], serializer_class=CalculationRequestCreateSerializer)
     def manual(self, request):
@@ -218,15 +282,49 @@ class CalculationViewSet(viewsets.GenericViewSet):
         description="Создает заявку из загруженного Excel (.xlsx) или CSV файла и запускает расчет в фоне.",
         request=CalculationFileUploadSerializer,
         responses={
-            202: OpenApiResponse(response={
-                "message": "Расчет добавлен в очередь и выполняется в фоне.",
-                "request_id": 29,
-                "task_id": "00e397fd-bff7-4337-a203-723a8da469e8",
-                "status_url": f"/api/calculate/29/status/"
-            }, description="Файл загружен. Расчет начался."),
-            400: OpenApiResponse(response={"error": "Error message"},
-                                 description="Ошибка валидации данных, обработки файла либо не найден контейнер/товар в базе")
-        }
+            202: OpenApiResponse(
+                response=inline_serializer(
+                    name='FileUploadSuccessResponse',
+                    fields={
+                        'message': serializers.CharField(),
+                        'request_id': serializers.IntegerField(),
+                        'task_id': serializers.UUIDField(),
+                        'status_url': serializers.CharField(),
+                    }
+                ),
+                description="Файл загружен. Расчет начался."
+            ),
+            400: OpenApiResponse(
+                response=inline_serializer(
+                    name='FileUploadErrorResponse',
+                    fields={
+                        'error': serializers.CharField()
+                    }
+                ),
+                description="Ошибка валидации данных, обработки файла либо не найден контейнер/товар в базе"
+            )
+        },
+        examples=[
+            OpenApiExample(
+                name="Успешный старт расчета",
+                summary="Заявка успешно создана (202)",
+                value={
+                    "message": "Расчет добавлен в очередь и выполняется в фоне.",
+                    "request_id": 29,
+                    "task_id": "00e397fd-bff7-4337-a203-723a8da469e8",
+                    "status_url": "/api/calculate/29/status/"
+                },
+                status_codes=["202"],
+                response_only=True,
+            ),
+            OpenApiExample(
+                name="Ошибка валидации/обработки файла либо неверно указан контейнер",
+                summary="Ошибка (400)",
+                value={"error": "Контейнер с ID 29 не найден"},
+                status_codes=["400"],
+                response_only=True,
+            )
+        ]
     )
     @action(detail=False, methods=['post'], serializer_class=CalculationFileUploadSerializer)
     def upload_file(self, request):
@@ -313,8 +411,24 @@ class CalculationViewSet(viewsets.GenericViewSet):
         description="Возвращает полную детализацию заявки по ID вместе с результатами упаковки (3D-координатами).",
         responses={
             200: CalculationRequestDetailSerializer,
-            404: OpenApiResponse(response={"error": "Заявка с id 29 не найдена"}, description="Заявка не найдена")
-        }
+            404: OpenApiResponse(
+                response=inline_serializer(
+                    name='FileUploadErrorResponse',
+                    fields={
+                        'error': serializers.CharField()
+                    }),
+                description="Заявка не найдена"
+            )
+        },
+        examples=[
+            OpenApiExample(
+                name="Неверно указан id заявки либо заявка не существует",
+                summary="Ошибка (400)",
+                value={"error": "Заявка с ID 29 не найдена"},
+                status_codes=["400"],
+                response_only=True,
+            ),
+        ]
     )
     def retrieve(self, request, pk=None):
         """
@@ -338,8 +452,24 @@ class CalculationViewSet(viewsets.GenericViewSet):
         description="Возвращает текущий статус фоновой задачи упаковки.",
         responses={
             200: CalculationStatusResponseSerializer,
-            404: OpenApiResponse(response={"error": "Заявка не найдена"}, description="Заявка не найдена")
-        }
+            404: OpenApiResponse(
+                response=inline_serializer(
+                    name='FileUploadErrorResponse',
+                    fields={
+                        'error': serializers.CharField()
+                    }),
+                description="Заявка не найдена"
+            )
+        },
+        examples=[
+            OpenApiExample(
+                name="Неверно указан id заявки либо заявка не существует",
+                summary="Ошибка (400)",
+                value={"error": "Заявка с ID 29 не найдена"},
+                status_codes=["400"],
+                response_only=True,
+            ),
+        ]
     )
     @action(detail=True, methods=['get'])
     def status(self, request, pk=None):

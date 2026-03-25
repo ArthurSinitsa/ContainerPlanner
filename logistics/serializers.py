@@ -67,7 +67,7 @@ class CalculationRequestDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'created_at', 'status', 'description', 'source_file', 'items', 'results']
 
 class CalculationStatusResponseSerializer(serializers.Serializer):
-    """Сериализатор исключительно для документации ответа эндпоинта status"""
+    """Сериализатор для документации ответа эндпоинта status"""
     id = serializers.IntegerField(help_text="ID заявки")
     status = serializers.CharField(help_text="Системный статус (PENDING, PROCESSING, etc)")
     status_display = serializers.CharField(help_text="Человекочитаемый статус")
@@ -76,6 +76,7 @@ class CalculationStatusResponseSerializer(serializers.Serializer):
 
 class SyncResponseSerializer(serializers.Serializer):
     """Сериализатор для документации ответа синхронизации"""
+    status = serializers.CharField()
     message = serializers.CharField()
     created = serializers.IntegerField()
     updated = serializers.IntegerField()
