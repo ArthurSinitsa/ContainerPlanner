@@ -16,7 +16,7 @@ class PackingService:
         Запускает жадный алгоритм: берет один контейнер, забивает его по максимуму,
         если остались товары — открывает следующий такой же контейнер, и так далее.
         """
-        results = []
+        results: list[dict] = []
         container_index = 1
 
         grouped_items = defaultdict(list)

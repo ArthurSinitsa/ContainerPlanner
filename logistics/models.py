@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.db.models import JSONField
 
 
 class ContainerType(models.Model):
@@ -126,12 +127,7 @@ class PackingResult(models.Model):
     volume_utilization_percent = models.FloatField(verbose_name="Заполнение по объему (%)")
     area_utilization_percent = models.FloatField(verbose_name="Заполнение по полу (%)")
 
-    # Структура JSON:
-    # [
-    #   {"sku": "A1", "x": 0, "y": 0, "z": 0, "dx": 500, "dy": 400, "dz": 300, "type": "pallet"},
-    #   {"sku": "A1", "x": 500, ... "type": "box"}
-    # ]
-    packing_layout = models.JSONField(verbose_name="Схема расстановки (JSON)", default=dict)
+    packing_layout: JSONField = models.JSONField(verbose_name="Схема расстановки (JSON)", default=list)
 
     class Meta:
         ordering = ['container_number']

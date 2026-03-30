@@ -1,6 +1,23 @@
 from rest_framework import serializers
 from .models import Product, ContainerType, PackingResult, RequestItem, CalculationRequest
 
+
+class PositionSerializer(serializers.Serializer):
+    x = serializers.FloatField(help_text="Координата X")
+    y = serializers.FloatField(help_text="Координата Y")
+    z = serializers.FloatField(help_text="Координата Z")
+
+class DimensionsSerializer(serializers.Serializer):
+    width = serializers.FloatField(help_text="Ширина в мм")
+    height = serializers.FloatField(help_text="Высота в мм")
+    length = serializers.FloatField(help_text="Длина в мм")
+
+class PackedItemLayoutSerializer(serializers.Serializer):
+    type = serializers.CharField(help_text="Тип объекта (pallet/masterbox/product)")
+    position = PositionSerializer()
+    dimensions = DimensionsSerializer()
+    product_id = serializers.IntegerField(help_text="ID товара в БД")
+
 class ProductSerializer(serializers.ModelSerializer):
     """
     Сериализатор для модели Product.
@@ -46,6 +63,7 @@ class CalculationFileUploadSerializer(serializers.Serializer):
 
 class PackingResultSerializer(serializers.ModelSerializer):
     """Сериализатор для результатов упаковки (один контейнер)"""
+    packing_layout = PackedItemLayoutSerializer(many=True)
     class Meta:
         model = PackingResult
         fields = '__all__'

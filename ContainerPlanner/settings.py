@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-p^%=wse(ohhe-3apiubmc1rf6n)36$%zcetq)71b6z)kia2f5y'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 
@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_prometheus',
+    'corsheaders',
     'logistics',
     'rest_framework',
     'drf_spectacular',
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django_prometheus.middleware.PrometheusBeforeMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -76,6 +78,9 @@ TEMPLATES = [
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
 }
 
 SPECTACULAR_SETTINGS = {
@@ -86,6 +91,27 @@ SPECTACULAR_SETTINGS = {
 }
 
 WSGI_APPLICATION = 'ContainerPlanner.wsgi.application'
+
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:5173",
+    "http://192.168.8.65:5173",
+    "http://192.168.8.66:5173",
+    "http://192.168.8.67:5173",
+    "http://192.168.8.68:5173",
+    "http://192.168.8.70:5173",
+    "http://192.168.8.72:5173",
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://192\.168\.8\.\d+:5173$",
+    r"^http://localhost:5173$",
+    r"^http://127\.0\.0\.1:5173$",
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 
 # Database
