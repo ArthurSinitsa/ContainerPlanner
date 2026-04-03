@@ -96,18 +96,10 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:8000",
-    "http://127.0.0.1:5173",
-    "http://192.168.8.65:5173",
-    "http://192.168.8.66:5173",
-    "http://192.168.8.67:5173",
-    "http://192.168.8.68:5173",
-    "http://192.168.8.70:5173",
-    "http://192.168.8.72:5173",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://192\.168\.8\.\d+:5173$",
-    r"^http://localhost:5173$",
     r"^http://127\.0\.0\.1:5173$",
 ]
 
