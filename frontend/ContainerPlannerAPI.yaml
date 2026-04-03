@@ -1,0 +1,1061 @@
+openapi: 3.0.3
+info:
+  title: Container Planner API
+  version: 1.0.0
+  description: API для расчета 3D-упаковки грузов в контейнеры
+paths:
+  /api/calculate/:
+    get:
+      operationId: calculate_list
+      description: Возвращает историю всех расчетов (без детальной геометрии, чтобы
+        не грузить сеть).
+      summary: Получить список заявок
+      tags:
+      - calculate
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CalculationRequestList'
+          description: ''
+  /api/calculate/{id}/:
+    get:
+      operationId: calculate_retrieve
+      description: Возвращает полную детализацию заявки по ID вместе с результатами
+        упаковки (3D-координатами).
+      summary: Детали заявки и расстановка
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Запрос на расчет.
+        required: true
+      tags:
+      - calculate
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationRequestDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadErrorResponse'
+          description: Заявка не найдена
+  /api/calculate/{id}/status/:
+    get:
+      operationId: calculate_status_retrieve
+      description: Возвращает текущий статус фоновой задачи упаковки.
+      summary: Узнать статус расчета
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Запрос на расчет.
+        required: true
+      tags:
+      - calculate
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculationStatusResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadErrorResponse'
+          description: Заявка не найдена
+  /api/calculate/manual/:
+    post:
+      operationId: calculate_manual_create
+      description: Создает заявку на основе переданного JSON списка товаров и запускает
+        расчет в фоне.
+      summary: Создать заявку вручную
+      tags:
+      - calculate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculationRequestCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CalculationRequestCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CalculationRequestCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadSuccessResponse'
+              examples:
+                УспешныйСтартРасчета:
+                  value:
+                    message: Расчет добавлен в очередь и выполняется в фоне.
+                    request_id: 29
+                    task_id: 00e397fd-bff7-4337-a203-723a8da469e8
+                    status_url: /api/calculate/29/status/
+                  summary: Заявка успешно создана (202)
+          description: Файл загружен. Расчет начался.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadErrorResponse'
+              examples:
+                ОшибкаВалидацииДанныхЛибоНеверноУказанКонтейнер:
+                  value:
+                    error: Контейнер с ID 29 не найден
+                  summary: Ошибка (400)
+          description: Ошибка валидации данных, обработки файла либо не найден контейнер/товар
+            в базе
+  /api/calculate/upload_file/:
+    post:
+      operationId: calculate_upload_file_create
+      description: Создает заявку из загруженного Excel (.xlsx) или CSV файла и запускает
+        расчет в фоне.
+      summary: Загрузить заявку через файл
+      tags:
+      - calculate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculationFileUpload'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CalculationFileUpload'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CalculationFileUpload'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadSuccessResponse'
+              examples:
+                УспешныйСтартРасчета:
+                  value:
+                    message: Расчет добавлен в очередь и выполняется в фоне.
+                    request_id: 29
+                    task_id: 00e397fd-bff7-4337-a203-723a8da469e8
+                    status_url: /api/calculate/29/status/
+                  summary: Заявка успешно создана (202)
+          description: Файл загружен. Расчет начался.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadErrorResponse'
+              examples:
+                ОшибкаВалидации/обработкиФайлаЛибоНеверноУказанКонтейнер:
+                  value:
+                    error: Контейнер с ID 29 не найден
+                  summary: Ошибка (400)
+          description: Ошибка валидации данных, обработки файла либо не найден контейнер/товар
+            в базе
+  /api/containers/:
+    get:
+      operationId: containers_list
+      description: |-
+        API для управления типами контейнеров.
+        Поддерживает GET (список), POST (создать), PUT/PATCH (изменить), DELETE (удалить).
+      tags:
+      - containers
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContainerType'
+          description: ''
+    post:
+      operationId: containers_create
+      description: |-
+        API для управления типами контейнеров.
+        Поддерживает GET (список), POST (создать), PUT/PATCH (изменить), DELETE (удалить).
+      tags:
+      - containers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContainerType'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContainerType'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContainerType'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerType'
+          description: ''
+  /api/containers/{id}/:
+    get:
+      operationId: containers_retrieve
+      description: |-
+        API для управления типами контейнеров.
+        Поддерживает GET (список), POST (создать), PUT/PATCH (изменить), DELETE (удалить).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Тип контейнера.
+        required: true
+      tags:
+      - containers
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerType'
+          description: ''
+    put:
+      operationId: containers_update
+      description: |-
+        API для управления типами контейнеров.
+        Поддерживает GET (список), POST (создать), PUT/PATCH (изменить), DELETE (удалить).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Тип контейнера.
+        required: true
+      tags:
+      - containers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContainerType'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContainerType'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContainerType'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerType'
+          description: ''
+    patch:
+      operationId: containers_partial_update
+      description: |-
+        API для управления типами контейнеров.
+        Поддерживает GET (список), POST (создать), PUT/PATCH (изменить), DELETE (удалить).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Тип контейнера.
+        required: true
+      tags:
+      - containers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContainerType'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContainerType'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContainerType'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerType'
+          description: ''
+    delete:
+      operationId: containers_destroy
+      description: |-
+        API для управления типами контейнеров.
+        Поддерживает GET (список), POST (создать), PUT/PATCH (изменить), DELETE (удалить).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Тип контейнера.
+        required: true
+      tags:
+      - containers
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/products/:
+    get:
+      operationId: products_list
+      description: API для работы с товарами.
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+          description: ''
+  /api/products/{id}/:
+    get:
+      operationId: products_retrieve
+      description: API для работы с товарами.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Товар.
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/products/sync-excel/:
+    post:
+      operationId: products_sync_excel_create
+      description: Читает данные из таблицы в файле и обновляет базу товаров.
+      summary: Синхронизация с файлом (.xlsx/.csv)
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+              examples:
+                СинхронизацияВыполненаУспешно:
+                  value:
+                    status: SUCCESS
+                    message: Данные из Excel успешно загружены!
+                    created: 888
+                    updated: 888
+                  summary: Синхронизация выполнена успешно
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+              examples:
+                Ошибка:
+                  value:
+                    status: ERROR
+                    message: 'Ошибка при обработке файла: [описание ошибки]'
+                    created: 0
+                    updated: 0
+                  summary: Ошибка (400)
+          description: ''
+  /api/products/sync-google/:
+    post:
+      operationId: products_sync_google_create
+      description: Скачивает данные из Google таблицы и обновляет базу товаров.
+      summary: Синхронизация с Google Sheets
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+              examples:
+                СинхронизацияВыполненаУспешно:
+                  value:
+                    status: SUCCESS
+                    message: Синхронизация с Google Sheets прошла успешно!
+                    created: 888
+                    updated: 888
+                  summary: Синхронизация выполнена успешно
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+              examples:
+                Ошибка:
+                  value:
+                    status: ERROR
+                    message: 'Ошибка при синхронизации: [описание ошибки]'
+                    created: 0
+                    updated: 0
+                  summary: Ошибка при синхронизации (400)
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+              examples:
+                Ошибка:
+                  value:
+                    status: ERROR
+                    message: Файл google_credentials.json не найден в корне проекта.
+                    created: 0
+                    updated: 0
+                  summary: Ошибка подключения к Google sheets (500)
+          description: ''
+components:
+  schemas:
+    CalculationFileUpload:
+      type: object
+      description: Сериализатор для загрузки файла с заказом (.xlsx или .csv)
+      properties:
+        container_type_id:
+          type: integer
+          description: ID выбранного типа контейнера
+        file:
+          type: string
+          format: uri
+          description: 'Файл заказа (.xlsx или .csv). Поля: ID, Qty'
+        description:
+          type: string
+      required:
+      - container_type_id
+      - file
+    CalculationRequestCreate:
+      type: object
+      description: Сериализатор для ручного создания заявки (через JSON)
+      properties:
+        container_type_id:
+          type: integer
+          description: ID выбранного типа контейнера
+        description:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestItem'
+      required:
+      - container_type_id
+      - items
+    CalculationRequestDetail:
+      type: object
+      description: Детальный сериализатор, включающий товары и готовую расстановку
+        в контейнерах
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Дата расчета
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          title: Статус
+        description:
+          type: string
+          title: Примечание
+          maxLength: 255
+        source_file:
+          type: string
+          format: uri
+          nullable: true
+          title: Исходный файл заказа
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestItem'
+          readOnly: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PackingResult'
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - items
+      - results
+    CalculationRequestList:
+      type: object
+      description: Краткий сериализатор для списка заявок (без тяжелой 3D-геометрии)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Дата расчета
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          title: Статус
+        description:
+          type: string
+          title: Примечание
+          maxLength: 255
+        source_file:
+          type: string
+          format: uri
+          nullable: true
+          title: Исходный файл заказа
+      required:
+      - created_at
+      - id
+    CalculationStatusResponse:
+      type: object
+      description: Сериализатор для документации ответа эндпоинта status
+      properties:
+        id:
+          type: integer
+          description: ID заявки
+        status:
+          type: string
+          description: Системный статус (PENDING, PROCESSING, etc)
+        status_display:
+          type: string
+          description: Человекочитаемый статус
+        task_id:
+          type: string
+          nullable: true
+          description: ID задачи в Celery
+        error_message:
+          type: string
+          nullable: true
+          description: Текст ошибки, если есть
+      required:
+      - id
+      - status
+      - status_display
+    ContainerType:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Название (например, 40HQ)
+          maxLength: 50
+        length_mm:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Длина (мм)
+        width_mm:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Ширина (мм)
+        height_mm:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Высота (мм)
+        max_weight_kg:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Макс. вес (кг)
+        volume_m3:
+          type: number
+          format: double
+          title: Полезный объем (м3)
+      required:
+      - height_mm
+      - id
+      - length_mm
+      - max_weight_kg
+      - name
+      - volume_m3
+      - width_mm
+    Dimensions:
+      type: object
+      properties:
+        width:
+          type: number
+          format: double
+          description: Ширина в мм
+        height:
+          type: number
+          format: double
+          description: Высота в мм
+        length:
+          type: number
+          format: double
+          description: Длина в мм
+      required:
+      - height
+      - length
+      - width
+    FileUpload:
+      type: object
+      description: |-
+        Вспомогательный сериализатор для эндпоинта загрузки Excel.
+        Он нужен только для того, чтобы DRF знал, что мы ожидаем файл,
+        и мог отобразить удобное поле загрузки в веб-интерфейсе (Swagger/Browsable API).
+      properties:
+        file:
+          type: string
+          format: uri
+          description: Excel файл с товарами (.xlsx)
+      required:
+      - file
+    FileUploadErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
+    FileUploadSuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        request_id:
+          type: integer
+        task_id:
+          type: string
+          format: uuid
+        status_url:
+          type: string
+      required:
+      - message
+      - request_id
+      - status_url
+      - task_id
+    PackedItemLayout:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Тип объекта (pallet/masterbox/product)
+        position:
+          $ref: '#/components/schemas/Position'
+        dimensions:
+          $ref: '#/components/schemas/Dimensions'
+        product_id:
+          type: integer
+          description: ID товара в БД
+      required:
+      - dimensions
+      - position
+      - product_id
+      - type
+    PackingResult:
+      type: object
+      description: Сериализатор для результатов упаковки (один контейнер)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        packing_layout:
+          type: array
+          items:
+            $ref: '#/components/schemas/PackedItemLayout'
+        container_number:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        total_weight_kg:
+          type: number
+          format: double
+          title: Вес груза (кг)
+        total_volume_m3:
+          type: number
+          format: double
+          title: Объем груза (м3)
+        volume_utilization_percent:
+          type: number
+          format: double
+          title: Заполнение по объему (%)
+        area_utilization_percent:
+          type: number
+          format: double
+          title: Заполнение по полу (%)
+        calculation_request:
+          type: integer
+        container_type:
+          type: integer
+      required:
+      - area_utilization_percent
+      - calculation_request
+      - container_number
+      - container_type
+      - id
+      - packing_layout
+      - total_volume_m3
+      - total_weight_kg
+      - volume_utilization_percent
+    PatchedContainerType:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Название (например, 40HQ)
+          maxLength: 50
+        length_mm:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Длина (мм)
+        width_mm:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Ширина (мм)
+        height_mm:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Высота (мм)
+        max_weight_kg:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Макс. вес (кг)
+        volume_m3:
+          type: number
+          format: double
+          title: Полезный объем (м3)
+    Position:
+      type: object
+      properties:
+        x:
+          type: number
+          format: double
+          description: Координата X
+        y:
+          type: number
+          format: double
+          description: Координата Y
+        z:
+          type: number
+          format: double
+          description: Координата Z
+      required:
+      - x
+      - y
+      - z
+    Product:
+      type: object
+      description: Сериализатор для модели Product.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_id:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: ID
+        sku:
+          type: string
+          nullable: true
+          maxLength: 100
+        name:
+          type: string
+          nullable: true
+          maxLength: 255
+        category:
+          type: string
+          nullable: true
+          maxLength: 100
+        ean:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        spec_name:
+          type: string
+          nullable: true
+          title: Spec-n Name
+          maxLength: 255
+        product_length_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Length Products (mm)
+        product_width_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Width Products (mm)
+        product_height_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Height Products (mm)
+        masterbox_length_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Length Masterbox (mm)
+        masterbox_width_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Width Masterbox (mm)
+        masterbox_height_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Height Masterbox (mm)
+        qty_of_masterbox:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          title: Qty of master box
+        masterbox_weight_kg:
+          type: number
+          format: double
+          nullable: true
+          title: Вес мастербокса (кг)
+        pallet_length_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Length Pallet (mm)
+        pallet_width_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Width Pallet (mm)
+        pallet_height_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Height Pallet (mm)
+        qty_of_pallet:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        pallet_weight_kg:
+          type: number
+          format: double
+          nullable: true
+          title: Pallet Weight (kg)
+        order_requirement:
+          type: string
+          nullable: true
+          maxLength: 50
+        kj_flag:
+          type: string
+          nullable: true
+          title: K/j
+          maxLength: 50
+        si_flag:
+          type: string
+          nullable: true
+          title: SI
+          maxLength: 50
+        eol_flag:
+          type: string
+          nullable: true
+          title: EOL
+          maxLength: 50
+        gz_flag:
+          type: string
+          nullable: true
+          title: GZ
+          maxLength: 50
+        battery_flag:
+          type: boolean
+          title: Battery
+        is_dangerous:
+          type: boolean
+          nullable: true
+          title: Опасный груз
+        is_stackable:
+          type: boolean
+          nullable: true
+          title: Можно штабелировать
+        can_be_unpalletized:
+          type: boolean
+          nullable: true
+          title: Можно распалечивать
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - updated_at
+    RequestItem:
+      type: object
+      description: Сериализатор для одной позиции в заявке
+      properties:
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+          title: Количество
+      required:
+      - product_id
+      - quantity
+    StatusEnum:
+      enum:
+      - PENDING
+      - PROCESSING
+      - COMPLETED
+      - FAILED
+      type: string
+      description: |-
+        * `PENDING` - В очереди
+        * `PROCESSING` - Рассчитывается
+        * `COMPLETED` - Завершено
+        * `FAILED` - Ошибка
+    SyncResponse:
+      type: object
+      description: Сериализатор для документации ответа синхронизации
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        created:
+          type: integer
+        updated:
+          type: integer
+      required:
+      - created
+      - message
+      - status
+      - updated
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

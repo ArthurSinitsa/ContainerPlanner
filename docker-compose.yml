@@ -101,6 +101,16 @@ services:
       - "9100:9100"
     restart: always
 
+  frontend:
+    build:
+      context: ./frontend
+    container_name: logistics_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: always
+
 volumes:
   postgres_data:
   prometheus_data:

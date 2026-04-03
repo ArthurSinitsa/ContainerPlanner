@@ -1,0 +1,8 @@
+/.idea
+/.venv
+__pycache__/
+requests_xls/
+.env
+google_credentials.json
+directory-tree.txt
+*.log
