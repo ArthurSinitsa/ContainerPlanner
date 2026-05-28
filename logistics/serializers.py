@@ -7,10 +7,12 @@ class PositionSerializer(serializers.Serializer):
     y = serializers.FloatField(help_text="Координата Y")
     z = serializers.FloatField(help_text="Координата Z")
 
+
 class DimensionsSerializer(serializers.Serializer):
     width = serializers.FloatField(help_text="Ширина в мм")
     height = serializers.FloatField(help_text="Высота в мм")
     length = serializers.FloatField(help_text="Длина в мм")
+
 
 class PackedItemLayoutSerializer(serializers.Serializer):
     type = serializers.CharField(help_text="Тип объекта (pallet/masterbox/product)")
@@ -18,10 +20,18 @@ class PackedItemLayoutSerializer(serializers.Serializer):
     dimensions = DimensionsSerializer()
     product_id = serializers.IntegerField(help_text="ID товара в БД")
 
+
+class PackedItemProductsSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(help_text="ID товара в БД")
+    product_name = serializers.CharField(required=True, allow_blank=True, help_text="Наименование товара")
+    quantity = serializers.IntegerField(required=True, help_text="Количество товара")
+
+
 class ProductSerializer(serializers.ModelSerializer):
     """
     Сериализатор для модели Product.
     """
+
     class Meta:
         model = Product
         fields = '__all__'
@@ -35,10 +45,12 @@ class FileUploadSerializer(serializers.Serializer):
     """
     file = serializers.FileField(required=True, help_text="Excel файл с товарами (.xlsx)")
 
+
 class ContainerTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContainerType
         fields = '__all__'
+
 
 class RequestItemSerializer(serializers.ModelSerializer):
     """Сериализатор для одной позиции в заявке"""
@@ -49,11 +61,13 @@ class RequestItemSerializer(serializers.ModelSerializer):
         model = RequestItem
         fields = ['product_id', 'quantity']
 
+
 class CalculationRequestCreateSerializer(serializers.Serializer):
     """Сериализатор для ручного создания заявки (через JSON)"""
     container_type_id = serializers.IntegerField(required=True, help_text="ID выбранного типа контейнера")
     description = serializers.CharField(required=False, allow_blank=True)
     items = RequestItemSerializer(many=True)
+
 
 class CalculationFileUploadSerializer(serializers.Serializer):
     """Сериализатор для загрузки файла с заказом (.xlsx или .csv)"""
@@ -61,19 +75,24 @@ class CalculationFileUploadSerializer(serializers.Serializer):
     file = serializers.FileField(required=True, help_text="Файл заказа (.xlsx или .csv). Поля: ID, Qty")
     description = serializers.CharField(required=False, allow_blank=True)
 
+
 class PackingResultSerializer(serializers.ModelSerializer):
     """Сериализатор для результатов упаковки (один контейнер)"""
+    products = PackedItemProductsSerializer(many=True)
     packing_layout = PackedItemLayoutSerializer(many=True)
+
     class Meta:
         model = PackingResult
         fields = '__all__'
+
 
 class CalculationRequestListSerializer(serializers.ModelSerializer):
     """Краткий сериализатор для списка заявок (без тяжелой 3D-геометрии)"""
 
     class Meta:
         model = CalculationRequest
-        fields = ['id', 'created_at', 'status', 'description', 'source_file',]
+        fields = ['id', 'created_at', 'status', 'description', 'source_file', ]
+
 
 class CalculationRequestDetailSerializer(serializers.ModelSerializer):
     """Детальный сериализатор, включающий товары и готовую расстановку в контейнерах"""
@@ -84,6 +103,7 @@ class CalculationRequestDetailSerializer(serializers.ModelSerializer):
         model = CalculationRequest
         fields = ['id', 'created_at', 'status', 'description', 'source_file', 'items', 'results']
 
+
 class CalculationStatusResponseSerializer(serializers.Serializer):
     """Сериализатор для документации ответа эндпоинта status"""
     id = serializers.IntegerField(help_text="ID заявки")
@@ -91,6 +111,7 @@ class CalculationStatusResponseSerializer(serializers.Serializer):
     status_display = serializers.CharField(help_text="Человекочитаемый статус")
     task_id = serializers.CharField(allow_null=True, required=False, help_text="ID задачи в Celery")
     error_message = serializers.CharField(allow_null=True, required=False, help_text="Текст ошибки, если есть")
+
 
 class SyncResponseSerializer(serializers.Serializer):
     """Сериализатор для документации ответа синхронизации"""

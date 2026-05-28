@@ -6,3 +6,4 @@ requests_xls/
 google_credentials.json
 directory-tree.txt
 *.log
+CLAUDE.md

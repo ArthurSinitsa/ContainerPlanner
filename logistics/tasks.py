@@ -37,6 +37,7 @@ def run_packing_task(self, calc_request_id, container_type_id):
                 total_volume_m3=res['total_volume_m3'],
                 volume_utilization_percent=res['volume_utilization_percent'],
                 area_utilization_percent=res['area_utilization_percent'],
+                products=res['products'],
                 packing_layout=res['layout']
             ))
 
