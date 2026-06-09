@@ -11,8 +11,8 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, #1d2233 0, #0f1118 50%);
-  color: #f5f7fb;
+  background: radial-gradient(circle at top, #1c1712 0, #110d09 50%);
+  color: #f5f0eb;
 }
 
 a {
@@ -35,7 +35,7 @@ a {
 
 .hero p {
   margin: 0;
-  color: #b1b7c8;
+  color: #b0a89a;
 }
 
 .grid {
@@ -45,7 +45,7 @@ a {
 }
 
 .card {
-  background: rgba(27, 31, 44, 0.92);
+  background: rgba(28, 23, 18, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 16px;
@@ -73,8 +73,8 @@ input,
 select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  background: #101421;
-  color: #f5f7fb;
+  background: #140f0b;
+  color: #f5f0eb;
   border-radius: 10px;
   padding: 10px;
 }
@@ -132,11 +132,11 @@ select {
 }
 
 .button.primary {
-  background: linear-gradient(135deg, #4d8dff, #3768ff);
+  background: linear-gradient(135deg, #c97d3c, #b06228);
 }
 
 .button.secondary {
-  background: #2d3348;
+  background: #2c231a;
 }
 
 .button.danger {
@@ -156,7 +156,7 @@ select {
 .uploadDropzone {
   border: 1px dashed rgba(255, 255, 255, 0.24);
   border-radius: 12px;
-  background: #0b111d;
+  background: #0e0a06;
   min-height: 170px;
   display: flex;
   align-items: center;
@@ -168,7 +168,7 @@ select {
 }
 
 .uploadDropzone:hover {
-  border-color: rgba(91, 162, 255, 0.9);
+  border-color: rgba(201, 125, 60, 0.9);
 }
 
 .uploadDropzoneIcon {
@@ -178,18 +178,18 @@ select {
   border: 1px solid rgba(255, 255, 255, 0.24);
   display: grid;
   place-items: center;
-  color: #9cc1ff;
+  color: #e09850;
   font-size: 26px;
 }
 
 .uploadDropzoneTitle {
   font-size: 15px;
-  color: #e5ecff;
+  color: #f0e8d8;
   text-align: center;
 }
 
 .uploadDropzoneHint {
-  color: #9ea8bd;
+  color: #9e9282;
   font-size: 13px;
 }
 
@@ -205,7 +205,7 @@ select {
   right: 0;
   max-height: 280px;
   overflow: auto;
-  background: #0e1524;
+  background: #110c08;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
 }
@@ -214,7 +214,7 @@ select {
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: transparent;
-  color: #eef3ff;
+  color: #f0e8d8;
   width: 100%;
   text-align: left;
   padding: 8px 10px;
@@ -223,12 +223,12 @@ select {
 }
 
 .productSearchOption:hover {
-  background: rgba(91, 162, 255, 0.18);
+  background: rgba(201, 125, 60, 0.18);
 }
 
 .productSearchEmpty {
   padding: 10px;
-  color: #9ea8bd;
+  color: #9e9282;
   font-size: 13px;
 }
 
@@ -242,8 +242,8 @@ select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  background: #101421;
-  color: #eff2f9;
+  background: #140f0b;
+  color: #f0ece4;
   padding: 10px;
   cursor: pointer;
   display: flex;
@@ -273,7 +273,7 @@ select {
 }
 
 .historyCreatedAt {
-  color: #9ea8bd;
+  color: #9e9282;
   font-size: 12px;
 }
 
@@ -289,7 +289,7 @@ select {
 }
 
 .statusMarker.running {
-  background: conic-gradient(#4d8dff 0deg 230deg, rgba(255, 255, 255, 0.14) 230deg 360deg);
+  background: conic-gradient(#c97d3c 0deg 230deg, rgba(255, 255, 255, 0.14) 230deg 360deg);
   animation: spin 1.1s linear infinite;
 }
 
@@ -297,7 +297,7 @@ select {
   width: 14px;
   height: 14px;
   border-radius: 999px;
-  background: #101421;
+  background: #140f0b;
 }
 
 .statusMarker.completed {
@@ -313,7 +313,7 @@ select {
 }
 
 .historyItem:hover {
-  border-color: rgba(77, 141, 255, 0.8);
+  border-color: rgba(201, 125, 60, 0.8);
 }
 
 .error {
@@ -333,7 +333,7 @@ select {
   border: 1px dashed rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   padding: 16px;
-  color: #c6cde0;
+  color: #c0b8ae;
 }
 
 .viewer3d {
@@ -342,13 +342,13 @@ select {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, #0b1322, #0c0f17);
+  background: linear-gradient(180deg, #0e0a07, #0c0907);
   position: relative;
 }
 
 .viewerNotice {
   margin-top: 8px;
-  color: #a9b2c6;
+  color: #a09080;
   font-size: 12px;
 }
 
@@ -357,11 +357,11 @@ select {
   top: 12px;
   left: 12px;
   z-index: 10;
-  background: rgba(10, 15, 27, 0.7);
+  background: rgba(15, 10, 7, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 12px;
   padding: 10px 12px;
-  color: #eef3ff;
+  color: #f0e8d8;
   font-size: 13px;
   pointer-events: none;
   backdrop-filter: blur(6px);
@@ -389,7 +389,7 @@ select {
   padding: 12px 14px;
   margin-bottom: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(15, 22, 36, 0.92);
+  background: rgba(18, 13, 9, 0.92);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -407,7 +407,7 @@ select {
 }
 
 .toastMessage {
-  color: #eef3ff;
+  color: #f0e8d8;
   font-size: 13px;
 }
 
@@ -419,8 +419,8 @@ select {
 
 .resultCard {
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #0f1421;
-  color: #f1f5ff;
+  background: #130f0b;
+  color: #f0ece8;
   border-radius: 10px;
   padding: 12px;
   text-align: left;
@@ -429,7 +429,7 @@ select {
 }
 
 .resultCard.active {
-  border-color: #4d8dff;
+  border-color: #c97d3c;
 }
 
 .resultHeader {
@@ -440,7 +440,7 @@ select {
 }
 
 .resultHeader span {
-  color: #9fa8bb;
+  color: #9e9080;
   font-size: 13px;
 }
 
@@ -454,14 +454,14 @@ select {
 }
 
 .resultMetric span {
-  color: #a9b2c6;
+  color: #a09080;
 }
 
 .miniBar {
   width: 100%;
   height: 8px;
   border-radius: 999px;
-  background: #0a0f1b;
+  background: #0d0a06;
   border: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
   margin-bottom: 8px;
@@ -472,11 +472,11 @@ select {
 }
 
 .miniBarFill.volume {
-  background: linear-gradient(90deg, #4d8dff, #67b8ff);
+  background: linear-gradient(90deg, #c97d3c, #e09850);
 }
 
 .miniBarFill.area {
-  background: linear-gradient(90deg, #7a8cff, #a283ff);
+  background: linear-gradient(90deg, #9e7040, #c49060);
 }
 
 .miniBarFill.weight {
@@ -488,7 +488,7 @@ pre {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 12px;
-  background: #090c16;
+  background: #0d0a06;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 12px;
@@ -532,7 +532,7 @@ pre {
 
 .modalCard {
   width: min(860px, 100%);
-  background: rgba(27, 31, 44, 0.95);
+  background: rgba(28, 23, 18, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
@@ -561,7 +561,7 @@ pre {
 .modalClose {
   border: none;
   background: transparent;
-  color: #e8eeff;
+  color: #f0e8d8;
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -588,7 +588,7 @@ pre {
 .tileCard {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #0f1421;
+  background: #130f0b;
   padding: 14px;
   text-align: left;
   cursor: pointer;
@@ -598,7 +598,7 @@ pre {
 
 .tileCard:hover {
   transform: translateY(-1px);
-  border-color: rgba(77, 141, 255, 0.65);
+  border-color: rgba(201, 125, 60, 0.65);
 }
 
 .tileDelete {
@@ -630,7 +630,7 @@ pre {
 }
 
 .tableLike thead th {
-  color: #a9b2c6;
+  color: #a09080;
   font-size: 12px;
   font-weight: 800;
 }
@@ -640,5 +640,18 @@ pre {
 }
 
 .tableRowHover:hover {
-  background: rgba(77, 141, 255, 0.15);
+  background: rgba(201, 125, 60, 0.15);
+}
+
+.containerProductsSection {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.containerProductsSection h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #b0a89a;
 }

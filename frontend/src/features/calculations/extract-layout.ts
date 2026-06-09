@@ -1,6 +1,6 @@
 import type { PackedBox, PackedItemLayout } from "../../lib/types";
 
-const COLOR_PALETTE = ["#5aa9ff", "#86efac", "#fca5a5", "#fcd34d", "#c4b5fd", "#67e8f9"];
+const COLOR_PALETTE = ["#e09550", "#86efac", "#f08070", "#f0c855", "#d4a860", "#68c4a8"];
 
 function colorFromProductId(productId: number, index: number): string {
   return COLOR_PALETTE[Math.abs(Math.floor(productId)) % COLOR_PALETTE.length] ?? COLOR_PALETTE[index % COLOR_PALETTE.length];

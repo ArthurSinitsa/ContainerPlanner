@@ -69,6 +69,12 @@ export interface FileUploadSuccessResponse {
   status_url: string;
 }
 
+export interface PackedItemProducts {
+  product_id: number;
+  product_name: string;
+  quantity: number;
+}
+
 export interface PackingResult {
   id: number;
   container_number: number;
@@ -76,6 +82,7 @@ export interface PackingResult {
   total_volume_m3: number;
   volume_utilization_percent: number;
   area_utilization_percent: number;
+  products: PackedItemProducts[];
   packing_layout: PackedItemLayout[];
   calculation_request: number;
   container_type: number;

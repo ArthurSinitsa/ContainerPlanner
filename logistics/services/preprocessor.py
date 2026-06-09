@@ -39,7 +39,7 @@ class RequestPreprocessor:
 
             if req_category in ['tv']:
                 unit_type = 'pallet'
-                qty_in_unit = prod.qty_of_pallet or 1
+                qty_in_unit = prod.qty_of_masterbox or 1
                 length = prod.pallet_length_mm
                 width = prod.pallet_width_mm
                 height = prod.pallet_height_mm

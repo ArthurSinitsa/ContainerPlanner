@@ -172,53 +172,78 @@ export function CalculationPage() {
           <article className="card full">
             <h2>Расчет по контейнерам</h2>
             {detailsQuery.data ? resultCards.length ? (
-              <div className="resultGrid">
-                {resultCards.map((result, index) => {
-                  const isActive = index === activeContainerIndex;
-                  const containerName = containerNameById.get(result.container_type) ?? `ID ${result.container_type}`;
-                  return (
-                    <button
-                      key={result.id}
-                      className={`resultCard ${isActive ? "active" : ""}`}
-                      type="button"
-                      onClick={() => setActiveContainerIndex(index)}
-                    >
-                      <div className="resultHeader">
-                        <strong>Контейнер #{result.container_number}</strong>
-                        <span>{containerName}</span>
-                      </div>
-                      <div className="resultMetric">
-                        <span>Вес</span>
-                        <strong>{result.total_weight_kg.toFixed(2)} кг</strong>
-                      </div>
-                      <div className="resultMetric">
-                        <span>Объем</span>
-                        <strong>{result.total_volume_m3.toFixed(2)} м3</strong>
-                      </div>
-                      <div className="resultMetric">
-                        <span>Заполнение по объему</span>
-                        <strong>{result.volume_utilization_percent.toFixed(2)}%</strong>
-                      </div>
-                      <div className="miniBar">
-                        <div
-                          className="miniBarFill volume"
-                          style={{ width: `${Math.min(100, result.volume_utilization_percent)}%` }}
-                        />
-                      </div>
-                      <div className="resultMetric">
-                        <span>Заполнение по площади</span>
-                        <strong>{result.area_utilization_percent.toFixed(2)}%</strong>
-                      </div>
-                      <div className="miniBar">
-                        <div
-                          className="miniBarFill area"
-                          style={{ width: `${Math.min(100, result.area_utilization_percent)}%` }}
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="resultGrid">
+                  {resultCards.map((result, index) => {
+                    const isActive = index === activeContainerIndex;
+                    const containerName = containerNameById.get(result.container_type) ?? `ID ${result.container_type}`;
+                    return (
+                      <button
+                        key={result.id}
+                        className={`resultCard ${isActive ? "active" : ""}`}
+                        type="button"
+                        onClick={() => setActiveContainerIndex(index)}
+                      >
+                        <div className="resultHeader">
+                          <strong>Контейнер #{result.container_number}</strong>
+                          <span>{containerName}</span>
+                        </div>
+                        <div className="resultMetric">
+                          <span>Вес</span>
+                          <strong>{result.total_weight_kg.toFixed(2)} кг</strong>
+                        </div>
+                        <div className="resultMetric">
+                          <span>Объем</span>
+                          <strong>{result.total_volume_m3.toFixed(2)} м3</strong>
+                        </div>
+                        <div className="resultMetric">
+                          <span>Заполнение по объему</span>
+                          <strong>{result.volume_utilization_percent.toFixed(2)}%</strong>
+                        </div>
+                        <div className="miniBar">
+                          <div
+                            className="miniBarFill volume"
+                            style={{ width: `${Math.min(100, result.volume_utilization_percent)}%` }}
+                          />
+                        </div>
+                        <div className="resultMetric">
+                          <span>Заполнение по площади</span>
+                          <strong>{result.area_utilization_percent.toFixed(2)}%</strong>
+                        </div>
+                        <div className="miniBar">
+                          <div
+                            className="miniBarFill area"
+                            style={{ width: `${Math.min(100, result.area_utilization_percent)}%` }}
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {activeResult?.products?.length ? (
+                  <div className="containerProductsSection">
+                    <h3>Товары в контейнере #{activeResult.container_number}</h3>
+                    <table className="tableLike">
+                      <thead>
+                        <tr>
+                          <th>product_id</th>
+                          <th>Название</th>
+                          <th>Кол-во</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeResult.products.map((p) => (
+                          <tr key={p.product_id} className="tableRowHover">
+                            <td>{p.product_id}</td>
+                            <td>{p.product_name || "—"}</td>
+                            <td>{p.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div className="emptyPanel">
                 <p>Результаты для этой заявки пока отсутствуют.</p>

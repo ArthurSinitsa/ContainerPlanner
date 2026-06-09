@@ -100,11 +100,11 @@ export function Layout3DViewer({
             <group position={[cx, cy, cz]} renderOrder={-1}>
               <mesh renderOrder={-2}>
                 <boxGeometry args={[cw, ch, cd]} />
-                <meshStandardMaterial color="#4d8dff" transparent opacity={0.05} depthWrite={false} />
+                <meshStandardMaterial color="#c97d3c" transparent opacity={0.05} depthWrite={false} />
               </mesh>
               <mesh renderOrder={-1}>
                 <boxGeometry args={[cw, ch, cd]} />
-                <meshBasicMaterial color="#4d8dff" transparent opacity={0.28} wireframe depthWrite={false} />
+                <meshBasicMaterial color="#c97d3c" transparent opacity={0.28} wireframe depthWrite={false} />
               </mesh>
             </group>
           );
@@ -112,10 +112,10 @@ export function Layout3DViewer({
 
         <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
           <planeGeometry args={[maxDim * 5, maxDim * 5]} />
-          <meshStandardMaterial color="#0f1624" />
+          <meshStandardMaterial color="#110d09" />
         </mesh>
 
-        <gridHelper args={[maxDim * 5, 45, "#4d8dff", "#2a3550"]} />
+        <gridHelper args={[maxDim * 5, 45, "#8c5c28", "#2a1e12"]} />
         {safeBoxes.map((box, idx) => {
           const w = box.width * scale;
           const h = box.height * scale;
