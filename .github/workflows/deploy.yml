@@ -1,0 +1,24 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Pull latest code
+        run: |
+          cd ~
+          git pull origin main
+
+      - name: Build and restart
+        run: |
+          cd ~
+          docker compose down
+          docker compose build --no-cache
+          docker compose up -d
+
+      - name: Clean up old images
+        run: docker image prune -f

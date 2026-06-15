@@ -61,6 +61,18 @@ export const api = {
     }),
 
   getProducts: () => request<Product[]>("/api/products/"),
+  createProduct: (payload: Omit<Product, "id" | "updated_at">) =>
+    request<Product>("/api/products/", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  updateProduct: (id: number, payload: Partial<Omit<Product, "id" | "updated_at">>) =>
+    request<Product>(`/api/products/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+  deleteProduct: (id: number) =>
+    request<void>(`/api/products/${id}/`, { method: "DELETE" }),
   syncProductsGoogle: () => {
     // Backend endpoint expects Product serializer; action itself likely ignores body,
     // but we send minimal required/readOnly fields to satisfy validation.

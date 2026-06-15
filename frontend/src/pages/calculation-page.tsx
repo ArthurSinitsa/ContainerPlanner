@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Layout3DViewer } from "../features/calculations/layout-3d-viewer";
 import { extractPackedBoxes } from "../features/calculations/extract-layout";
+import { Header } from "../components/header";
 import { api } from "../lib/api";
 import type { CalculationRequestDetail, Product, StatusEnum } from "../lib/types";
 
@@ -95,47 +96,61 @@ export function CalculationPage() {
 
   if (!Number.isFinite(numericId)) {
     return (
-      <main className="layout">
-        <div className="card">Некорректный ID заявки.</div>
-      </main>
+      <>
+        <Header />
+        <main className="layout">
+          <div className="card">Некорректный ID заявки.</div>
+        </main>
+      </>
     );
   }
 
   if (statusQuery.isLoading) {
     return (
-      <main className="layout">
-        <div className="card">Опрашиваем статус расчета...</div>
-      </main>
+      <>
+        <Header />
+        <main className="layout">
+          <div className="card">Опрашиваем статус расчета...</div>
+        </main>
+      </>
     );
   }
 
   if (statusQuery.isError || !statusQuery.data) {
     return (
-      <main className="layout">
-        <div className="card">Не удалось загрузить статус расчета.</div>
-      </main>
+      <>
+        <Header />
+        <main className="layout">
+          <div className="card">Не удалось загрузить статус расчета.</div>
+        </main>
+      </>
     );
   }
 
   if (String(status).toUpperCase() === "FAILED") {
     return (
-      <main className="layout">
-        <header className="hero row between">
-          <div>
-            <h1>Заявка #{numericId}</h1>
-            <p>Ошибка выполнения</p>
-          </div>
-          <Link to="/" className="button secondary">
-            ← Назад
-          </Link>
-        </header>
-        <div className="error">{statusQuery.data.error_message ?? "Неизвестная ошибка."}</div>
-      </main>
+      <>
+        <Header />
+        <main className="layout">
+          <header className="hero row between">
+            <div>
+              <h1>Заявка #{numericId}</h1>
+              <p>Ошибка выполнения</p>
+            </div>
+            <Link to="/" className="button secondary">
+              ← Назад
+            </Link>
+          </header>
+          <div className="error">{statusQuery.data.error_message ?? "Неизвестная ошибка."}</div>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="layout">
+    <>
+      <Header />
+      <main className="layout">
       <header className="hero row between">
         <div>
           <h1>Заявка #{numericId}</h1>
@@ -228,6 +243,7 @@ export function CalculationPage() {
                         <tr>
                           <th>product_id</th>
                           <th>Название</th>
+                          <th>SKU</th>
                           <th>Кол-во</th>
                         </tr>
                       </thead>
@@ -236,6 +252,7 @@ export function CalculationPage() {
                           <tr key={p.product_id} className="tableRowHover">
                             <td>{p.product_id}</td>
                             <td>{p.product_name || "—"}</td>
+                            <td>{productByProductId.get(p.product_id)?.sku ?? "—"}</td>
                             <td>{p.quantity}</td>
                           </tr>
                         ))}
@@ -277,7 +294,7 @@ export function CalculationPage() {
                       {detailsQuery.data.items.map((it) => {
                         const p = productByProductId.get(it.product_id);
                         return (
-                          <tr key={`${it.product_id}`}>
+                          <tr key={`${it.product_id}`} className="tableRowHover">
                             <td>{it.product_id}</td>
                             <td>{p?.name ?? "-"}</td>
                             <td>{p?.sku ?? "-"}</td>
@@ -298,5 +315,6 @@ export function CalculationPage() {
         </section>
       </div>
     </main>
+    </>
   );
 }

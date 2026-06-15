@@ -19,6 +19,71 @@ a {
   color: inherit;
 }
 
+.appHeader {
+  position: sticky;
+  top: 12px;
+  z-index: 100;
+  padding: 0 24px;
+  margin-top: 12px;
+  pointer-events: none;
+}
+
+.appHeaderInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: rgba(20, 14, 9, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 0 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+
+.appLogo {
+  font-weight: 900;
+  font-size: 18px;
+  color: #e09850;
+  text-decoration: none;
+  letter-spacing: -0.4px;
+  white-space: nowrap;
+  transition: color 120ms ease;
+}
+
+.appLogo:hover {
+  color: #b06228;
+}
+
+.appNav {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.appNavLink {
+  padding: 6px 12px;
+  border-radius: 8px;
+  color: #9e9282;
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+
+.appNavLink:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5f0eb;
+}
+
+.appNavLink.active {
+  background: rgba(201, 125, 60, 0.14);
+  color: #e09850;
+}
+
 .layout {
   max-width: 1200px;
   margin: 0 auto;
@@ -641,6 +706,46 @@ pre {
 
 .tableRowHover:hover {
   background: rgba(201, 125, 60, 0.15);
+}
+
+.pagination {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pageBtn {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #140f0b;
+  color: #b0a89a;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  min-width: 34px;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: rgba(201, 125, 60, 0.12);
+  border-color: rgba(201, 125, 60, 0.4);
+  color: #f5f0eb;
+}
+
+.pageBtn.active {
+  background: rgba(201, 125, 60, 0.2);
+  border-color: #c97d3c;
+  color: #e09850;
+  font-weight: 700;
+}
+
+.pageBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .containerProductsSection {

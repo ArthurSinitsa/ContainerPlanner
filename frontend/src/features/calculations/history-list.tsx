@@ -7,7 +7,7 @@ interface HistoryListProps {
   onRefresh: () => void;
 }
 
-function formatDateTime(iso: string) {
+export function formatDateTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   try {
@@ -23,7 +23,7 @@ function formatDateTime(iso: string) {
   }
 }
 
-function StatusMarker({ status }: { status: StatusEnum }) {
+export function StatusMarker({ status }: { status: StatusEnum }) {
   if (status === "COMPLETED") {
     return <span className="statusMarker completed">✓</span>;
   }

@@ -15,7 +15,22 @@ export interface Product {
   sku: string | null;
   category?: string | null;
   ean?: number | null;
+  spec_name?: string | null;
+  masterbox_length_mm?: number | null;
+  masterbox_width_mm?: number | null;
+  masterbox_height_mm?: number | null;
+  qty_of_masterbox?: number;
+  masterbox_weight_kg?: number | null;
+  pallet_length_mm?: number | null;
+  pallet_width_mm?: number | null;
+  pallet_height_mm?: number | null;
+  qty_of_pallet?: number;
+  pallet_weight_kg?: number | null;
   battery_flag: boolean;
+  is_dangerous?: boolean | null;
+  is_stackable?: boolean | null;
+  can_be_unpalletized?: boolean | null;
+  order_requirement?: string | null;
   updated_at?: string;
 }
 

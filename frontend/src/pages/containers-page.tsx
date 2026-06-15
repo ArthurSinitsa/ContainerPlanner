@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ContainerType } from "../lib/types";
 import { api } from "../lib/api";
 import { Modal } from "../components/modal";
+import { Header } from "../components/header";
 import { useToast } from "../app/toast-context";
 import { extractApiErrorMessage } from "../lib/api-error";
 
@@ -151,22 +152,28 @@ export function ContainersPage() {
 
   if (isLoading) {
     return (
-      <main className="layout">
-        <div className="card">Загрузка контейнеров...</div>
-      </main>
+      <>
+        <Header />
+        <main className="layout">
+          <div className="card">Загрузка контейнеров...</div>
+        </main>
+      </>
     );
   }
 
   if (containersQuery.isError || !containersQuery.data) {
     return (
-      <main className="layout">
-        <div className="card">
-          Не удалось загрузить контейнеры.
-          <div className="error" style={{ marginTop: 12 }}>
-            {extractApiErrorMessage(containersQuery.error, "unknown error")}
+      <>
+        <Header />
+        <main className="layout">
+          <div className="card">
+            Не удалось загрузить контейнеры.
+            <div className="error" style={{ marginTop: 12 }}>
+              {extractApiErrorMessage(containersQuery.error, "unknown error")}
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </>
     );
   }
 
@@ -175,6 +182,8 @@ export function ContainersPage() {
   const weightMax = useMemo(() => Math.max(1, ...containers.map((c) => c.max_weight_kg)), [containers]);
 
   return (
+    <>
+    <Header />
     <main className="layout">
       <header className="hero row between" style={{ marginBottom: 16 }}>
         <div>
@@ -362,6 +371,7 @@ export function ContainersPage() {
         ) : null}
       </Modal>
     </main>
+    </>
   );
 }
 

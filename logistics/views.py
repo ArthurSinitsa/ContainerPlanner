@@ -14,11 +14,11 @@ from .serializers import (ProductSerializer, FileUploadSerializer, ContainerType
 from .services.loader import GoogleSheetsLoader, FileLoader
 from .tasks import run_packing_task
 
-class ProductViewSet(viewsets.ReadOnlyModelViewSet):
+class ProductViewSet(viewsets.ModelViewSet):
     """
     API для работы с товарами.
     """
-    queryset = Product.objects.all().order_by('product_id')
+    queryset = Product.objects.all().order_by('-id')
     serializer_class = ProductSerializer
 
     @extend_schema(
