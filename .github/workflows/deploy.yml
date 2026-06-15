@@ -10,12 +10,12 @@ jobs:
     steps:
       - name: Pull latest code
         run: |
-          cd ~
+          cd ~/ContainerPlanner
           git pull origin main
 
       - name: Build and restart
         run: |
-          cd ~
+          cd ~/ContainerPlanner
           docker compose down
           docker compose build --no-cache
           docker compose up -d
