@@ -1,7 +1,11 @@
+import logging
+
 from celery import shared_task
 from .models import CalculationRequest, ContainerType, PackingResult
 from .services.preprocessor import RequestPreprocessor
 from .services.calculator import PackingService
+
+logger = logging.getLogger(__name__)
 
 @shared_task(bind=True)
 def run_packing_task(self, calc_request_id, container_type_id):
@@ -55,8 +59,9 @@ def run_packing_task(self, calc_request_id, container_type_id):
         }
 
     except Exception as e:
+        logger.exception("Packing task failed for request_id=%s: %s", calc_request_id, e)
         if 'calc_request' in locals():
             calc_request.status = 'FAILED'
-            calc_request.error_message = str(e)
+            calc_request.error_message = f"{type(e).__name__}: {str(e)}"
             calc_request.save()
         return {"status": "error", "message": str(e)}

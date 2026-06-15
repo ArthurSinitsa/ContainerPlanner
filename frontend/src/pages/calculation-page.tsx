@@ -141,7 +141,7 @@ export function CalculationPage() {
               ← Назад
             </Link>
           </header>
-          <div className="error">{statusQuery.data.error_message ?? "Неизвестная ошибка."}</div>
+          <div className="error">Расчёт завершился с ошибкой. Попробуйте создать заявку повторно или обратитесь к администратору.</div>
         </main>
       </>
     );

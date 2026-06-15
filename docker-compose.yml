@@ -6,39 +6,54 @@ services:
     container_name: logistics_db
     restart: always
     environment:
-      - POSTGRES_DB=logistics_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=${DB_NAME:-logistics_db}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis
     container_name: logistics_redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build: .
     container_name: logistics_api
-    command: > 
-      sh -c "python manage.py makemigrations && python manage.py migrate && 
+    command: >
+      sh -c "python manage.py migrate &&
       gunicorn ContainerPlanner.wsgi:application -c gunicorn.conf.py"
     ports:
       - "8000:8000"
     environment:
       - DJANGO_SETTINGS_MODULE=ContainerPlanner.settings
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
       - DB_HOST=db
-      - DB_NAME=logistics_db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_NAME=${DB_NAME:-logistics_db}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
   celery:
@@ -47,26 +62,29 @@ services:
     command: celery -A ContainerPlanner worker -l info
     environment:
       - DJANGO_SETTINGS_MODULE=ContainerPlanner.settings
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       - DB_HOST=db
-      - DB_NAME=logistics_db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_NAME=${DB_NAME:-logistics_db}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
   prometheus:
     image: prom/prometheus:latest
     container_name: logistics_prometheus
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml # Подкидываем наш конфиг
-      - prometheus_data:/prometheus # Сохраняем историю метрик
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     restart: always
 
   grafana:
@@ -75,7 +93,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin # Пароль для входа (логин тоже admin)
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:?GF_ADMIN_PASSWORD is required}
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
@@ -86,19 +104,19 @@ services:
     image: prometheuscommunity/postgres-exporter
     container_name: logistics_pg_exporter
     environment:
-      # Подключаемся к нашей БД для сбора метрик
-      DATA_SOURCE_NAME: "postgresql://postgres:postgres@db:5432/logistics_db?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-logistics_db}?sslmode=disable"
     ports:
-      - "9187:9187"
+      - "127.0.0.1:9187:9187"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: always
 
   node-exporter:
     image: prom/node-exporter:latest
     container_name: logistics_node_exporter
     ports:
-      - "9100:9100"
+      - "127.0.0.1:9100:9100"
     restart: always
 
   frontend:

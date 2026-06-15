@@ -21,12 +21,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-p^%=wse(ohhe-3apiubmc1rf6n)36$%zcetq)71b6z)kia2f5y'
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-p^%=wse(ohhe-3apiubmc1rf6n)36$%zcetq)71b6z)kia2f5y'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*']
+_allowed = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()] or ['*']
 
 
 # Application definition
@@ -93,10 +97,12 @@ SPECTACULAR_SETTINGS = {
 WSGI_APPLICATION = 'ContainerPlanner.wsgi.application'
 
 CORS_ALLOW_ALL_ORIGINS = False
+
+_extra_cors = [o.strip() for o in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if o.strip()]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:8000",
-]
+] + _extra_cors
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://192\.168\.8\.\d+:5173$",

@@ -1,6 +1,9 @@
+import logging
 import os
 from django.conf import settings
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -77,9 +80,10 @@ class ProductViewSet(viewsets.ModelViewSet):
         sheet = 'Spravka'
 
         if not os.path.exists(creds_path):
+            logger.error("Google credentials file not found at: %s", creds_path)
             return Response({
                     "status":"ERROR",
-                    "message": "Файл google_credentials.json не найден в корне проекта.",
+                    "message": "Сервис синхронизации с Google Sheets недоступен. Обратитесь к администратору.",
                     "created": 0,
                     "updated": 0
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -95,9 +99,10 @@ class ProductViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
+            logger.exception("Google Sheets sync failed: %s", e)
             return Response({
                     "status":"ERROR",
-                    "message": f"Ошибка при синхронизации: {str(e)}",
+                    "message": "Ошибка при синхронизации с Google Sheets. Подробности — в логах сервера.",
                     "created": 0,
                     "updated": 0
                 }, status=status.HTTP_400_BAD_REQUEST)
@@ -155,10 +160,11 @@ class ProductViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_200_OK)
 
             except Exception as e:
+                logger.exception("Excel sync failed: %s", e)
                 return Response(
                     {
                         "status":"ERROR",
-                        "message": f"Ошибка при обработке файла: {str(e)}",
+                        "message": "Ошибка при обработке файла. Убедитесь, что файл корректен.",
                         "created": 0,
                         "updated": 0
                     },
@@ -379,7 +385,8 @@ class CalculationViewSet(viewsets.GenericViewSet):
             except ValueError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
-                return Response({"error": f"Ошибка обработки файла: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+                logger.exception("File upload calculation failed: %s", e)
+                return Response({"error": "Ошибка обработки файла. Убедитесь, что формат и содержимое файла корректны."}, status=status.HTTP_400_BAD_REQUEST)
 
             task = run_packing_task.delay(calc_request.id, container_type.id)
 

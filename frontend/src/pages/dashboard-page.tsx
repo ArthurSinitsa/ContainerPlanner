@@ -40,8 +40,6 @@ export function DashboardPage() {
     }
   });
 
-  const apiBase = import.meta.env.VITE_API_BASE_URL || "(not set)";
-
   const mapToBackendProductIds = (payload: CalculationRequestCreate): CalculationRequestCreate => {
     if (!productsQuery.data) return payload;
     const byLocalId = new Map(productsQuery.data.map((p) => [p.id, p.product_id]));
@@ -79,12 +77,8 @@ export function DashboardPage() {
         <Header />
         <main className="layout">
           <div className="card">
-            Не удалось загрузить данные.
-            <div className="error" style={{ marginTop: 12 }}>
-              <strong>Ошибка:</strong> {errorToText(globalError)}
-            </div>
-            <div style={{ marginTop: 10, color: "#b1b7c8" }}>
-              Проверь `VITE_API_BASE_URL`: <code>{apiBase}</code>
+            <div className="error">
+              Не удалось загрузить данные. Проверьте соединение с сервером и попробуйте обновить страницу.
             </div>
           </div>
         </main>
@@ -98,7 +92,7 @@ export function DashboardPage() {
         <Header />
         <main className="layout">
           <div className="card">
-            Данные не вернулись (data пустая/undefined).
+            Не удалось загрузить данные. Попробуйте обновить страницу.
           </div>
         </main>
       </>
