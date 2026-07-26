@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { Header } from "../components/header";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AppFrame } from "../components/app-frame";
 import { Pagination } from "../components/pagination";
 import { Modal } from "../components/modal";
+import { PlusIcon, SearchIcon, RefreshIcon, UploadIcon } from "../components/icons";
 import { useToast } from "../app/toast-context";
 import { extractApiErrorMessage } from "../lib/api-error";
 import { api } from "../lib/api";
@@ -10,7 +11,8 @@ import type { Product } from "../lib/types";
 
 type ProductModalMode = "add" | "edit";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 12;
+const COLS = "80px 1fr 120px 120px 120px 72px 82px";
 
 type ProductFormState = {
   product_id: string;
@@ -88,59 +90,63 @@ function toInt(v: string): number | null {
 export function ProductsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: api.getProducts });
 
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [battery, setBattery] = useState("");
   const [page, setPage] = useState(1);
   const [modalMode, setModalMode] = useState<ProductModalMode | null>(null);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Product | null>(null);
-  const [syncUploadMode, setSyncUploadMode] = useState(false);
-  const [syncFile, setSyncFile] = useState<File | null>(null);
 
-  const formInitial = useMemo(
-    () => (activeProduct ? productToForm(activeProduct) : emptyForm),
-    [activeProduct]
-  );
+  const formInitial = useMemo(() => (activeProduct ? productToForm(activeProduct) : emptyForm), [activeProduct]);
   const [form, setForm] = useState<ProductFormState>(formInitial);
-  useEffect(() => { setForm(formInitial); }, [formInitial]);
+  useEffect(() => {
+    setForm(formInitial);
+  }, [formInitial]);
 
   const setField = <K extends keyof ProductFormState>(key: K, value: ProductFormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }));
 
   const products = productsQuery.data ?? [];
 
+  const categoryOptions = useMemo(
+    () => [...new Set(products.map((p) => p.category).filter(Boolean))].sort() as string[],
+    [products]
+  );
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return products;
-    return products.filter(
-      (p) =>
-        String(p.product_id).includes(q) ||
-        (p.name ?? "").toLowerCase().includes(q) ||
-        (p.sku ?? "").toLowerCase().includes(q) ||
-        (p.category ?? "").toLowerCase().includes(q)
-    );
-  }, [products, search]);
+    return products.filter((p) => {
+      if (q) {
+        const match =
+          String(p.product_id).includes(q) ||
+          (p.name ?? "").toLowerCase().includes(q) ||
+          (p.sku ?? "").toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      if (category && p.category !== category) return false;
+      if (battery === "yes" && !p.battery_flag) return false;
+      if (battery === "no" && p.battery_flag) return false;
+      return true;
+    });
+  }, [products, search, category, battery]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageProducts = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const handleSearch = (v: string) => {
-    setSearch(v);
-    setPage(1);
-  };
+  const safePage = Math.min(page, totalPages);
+  const pageProducts = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const openAdd = () => {
     setActiveProduct(null);
     setModalMode("add");
   };
-
   const openEdit = (p: Product) => {
     setActiveProduct(p);
     setModalMode("edit");
   };
-
   const closeForm = () => {
     setModalMode(null);
     setActiveProduct(null);
@@ -181,17 +187,13 @@ export function ProductsPage() {
       await queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.pushToast({
         type: "success",
-        title: "Готово",
-        message: modalMode === "add" ? "Товар добавлен" : "Товар обновлён"
+        title: modalMode === "add" ? "Добавлено" : "Сохранено",
+        message: modalMode === "add" ? "Товар добавлен в базу." : "Товар обновлён."
       });
       closeForm();
     },
     onError: (err) => {
-      toast.pushToast({
-        type: "error",
-        title: "Ошибка",
-        message: extractApiErrorMessage(err, "Не удалось сохранить товар.")
-      });
+      toast.pushToast({ type: "error", title: "Ошибка", message: extractApiErrorMessage(err, "Не удалось сохранить товар.") });
     }
   });
 
@@ -199,15 +201,11 @@ export function ProductsPage() {
     mutationFn: (id: number) => api.deleteProduct(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.pushToast({ type: "success", title: "Удалено", message: "Товар удалён" });
+      toast.pushToast({ type: "success", title: "Удалено", message: "Товар удалён." });
       setConfirmDelete(null);
     },
     onError: (err) => {
-      toast.pushToast({
-        type: "error",
-        title: "Ошибка",
-        message: extractApiErrorMessage(err, "Не удалось удалить товар.")
-      });
+      toast.pushToast({ type: "error", title: "Ошибка", message: extractApiErrorMessage(err, "Не удалось удалить товар.") });
     }
   });
 
@@ -215,14 +213,10 @@ export function ProductsPage() {
     mutationFn: api.syncProductsGoogle,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.pushToast({ type: "success", title: "Готово", message: "База успешно обновлена из Google Sheets" });
+      toast.pushToast({ type: "success", title: "Готово", message: "База обновлена из Google Sheets." });
     },
     onError: (err) => {
-      toast.pushToast({
-        type: "error",
-        title: "Ошибка",
-        message: extractApiErrorMessage(err, "Ошибка синхронизации с Google Sheets")
-      });
+      toast.pushToast({ type: "error", title: "Ошибка", message: extractApiErrorMessage(err, "Ошибка синхронизации с Google Sheets.") });
     }
   });
 
@@ -230,330 +224,299 @@ export function ProductsPage() {
     mutationFn: (file: File) => api.syncProductsExcel(file),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.pushToast({ type: "success", title: "Готово", message: "База успешно обновлена из файла" });
-      setSyncUploadMode(false);
-      setSyncFile(null);
+      toast.pushToast({ type: "success", title: "Готово", message: "База обновлена из файла." });
     },
     onError: (err) => {
-      toast.pushToast({
-        type: "error",
-        title: "Ошибка",
-        message: extractApiErrorMessage(err, "Ошибка загрузки файла")
-      });
+      toast.pushToast({ type: "error", title: "Ошибка", message: extractApiErrorMessage(err, "Ошибка загрузки файла.") });
     }
   });
 
   const isSyncing = syncGoogleMutation.isPending || syncExcelMutation.isPending;
 
+  const changeFilter = (fn: () => void) => {
+    fn();
+    setPage(1);
+  };
+
   return (
-    <>
-      <Header />
-      <main className="layout">
-        <div className="hero row between">
-          <div>
-            <h1>База товаров</h1>
-            {products.length > 0 && <p>{products.length} товаров в базе</p>}
+    <AppFrame>
+      <div className="hero between" style={{ alignItems: "flex-end" }}>
+        <div>
+          <h1>База товаров</h1>
+          <div className="heroSub">
+            {products.length} товаров · показано {filtered.length}
           </div>
-          <button className="button primary" type="button" onClick={openAdd}>
-            + Добавить товар
-          </button>
         </div>
+        <button className="btn btn-invert" type="button" onClick={openAdd}>
+          <PlusIcon size={16} />
+          Добавить товар
+        </button>
+      </div>
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="row between" style={{ margin: "0 0 12px" }}>
-            <div style={{ flex: 1, maxWidth: 340 }}>
-              <input
-                placeholder="Поиск по ID, названию, SKU, категории..."
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
-                style={{ margin: 0 }}
-              />
-            </div>
-            <div className="row" style={{ margin: 0 }}>
-              <button
-                className="button secondary"
-                type="button"
-                disabled={isSyncing}
-                onClick={() => { setSyncUploadMode(false); void syncGoogleMutation.mutateAsync(); }}
-              >
-                {syncGoogleMutation.isPending ? "Синхронизация..." : "Sync Google Sheets"}
-              </button>
-              <button
-                className="button secondary"
-                type="button"
-                disabled={isSyncing}
-                onClick={() => setSyncUploadMode(true)}
-              >
-                Загрузить из файла
-              </button>
-            </div>
-          </div>
-
-          {syncUploadMode && (
-            <form
-              className="stack"
-              style={{ marginBottom: 12 }}
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!syncFile) {
-                  toast.pushToast({ type: "error", title: "Ошибка", message: "Выбери файл .xlsx/.csv." });
-                  return;
-                }
-                await syncExcelMutation.mutateAsync(syncFile);
-              }}
-            >
-              <label className="uploadDropzone">
-                <div className="uploadDropzoneIcon">+</div>
-                <div className="uploadDropzoneTitle">
-                  {syncFile ? syncFile.name : "Перетащи файл или выбери вручную"}
-                </div>
-                <div className="uploadDropzoneHint">файлы .xlsx/.csv</div>
-                <span className="button secondary" style={{ pointerEvents: "none" }}>Загрузить</span>
-                <input
-                  className="hiddenInput"
-                  type="file"
-                  accept=".xlsx,.csv"
-                  onChange={(e) => setSyncFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              <div className="row" style={{ justifyContent: "flex-end", margin: 0 }}>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => { setSyncUploadMode(false); setSyncFile(null); }}
-                  disabled={syncExcelMutation.isPending}
-                >
-                  Отмена
-                </button>
-                <button className="button primary" type="submit" disabled={syncExcelMutation.isPending}>
-                  {syncExcelMutation.isPending ? "Загружаем..." : "Загрузить"}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {productsQuery.isLoading ? (
-            <div className="emptyPanel">Загрузка товаров...</div>
-          ) : filtered.length === 0 ? (
-            <div className="emptyPanel">{search ? "Ничего не найдено." : "База товаров пуста."}</div>
-          ) : (
-            <>
-              <div style={{ overflowX: "auto" }}>
-                <table className="tableLike">
-                  <thead>
-                    <tr>
-                      <th>product_id</th>
-                      <th>Название</th>
-                      <th>SKU</th>
-                      <th>Категория</th>
-                      <th>EAN</th>
-                      <th>Battery</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageProducts.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="tableRowHover"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => openEdit(p)}
-                      >
-                        <td>{p.product_id}</td>
-                        <td>{p.name ?? "—"}</td>
-                        <td>{p.sku ?? "—"}</td>
-                        <td>{p.category ?? "—"}</td>
-                        <td>{p.ean ?? "—"}</td>
-                        <td>{p.battery_flag ? "✓" : "—"}</td>
-                        <td>
-                          <button
-                            className="button danger"
-                            type="button"
-                            style={{ padding: "4px 10px", fontSize: 12 }}
-                            onClick={(e) => { e.stopPropagation(); setConfirmDelete(p); }}
-                          >
-                            Удалить
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <Pagination page={page} totalPages={totalPages} onPage={setPage} />
-            </>
-          )}
+      <div className="toolbar">
+        <div className="searchWrap">
+          <SearchIcon size={17} />
+          <input
+            placeholder="Поиск по ID, названию, SKU…"
+            value={search}
+            onChange={(e) => changeFilter(() => setSearch(e.target.value))}
+          />
         </div>
-
-        <Modal
-          open={modalMode === "add" || modalMode === "edit"}
-          onClose={() => { if (!createOrUpdate.isPending) closeForm(); }}
-          title={modalMode === "add" ? "Новый товар" : "Редактирование товара"}
-        >
-          <form
-            className="stack"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              await createOrUpdate.mutateAsync();
-            }}
+        <div className="row" style={{ gap: 10 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            type="button"
+            disabled={isSyncing}
+            onClick={() => syncGoogleMutation.mutate()}
           >
-            <div style={{ fontWeight: 700, color: "#a09080", fontSize: 12, marginBottom: -4 }}>
-              Основные данные
+            <RefreshIcon size={15} />
+            {syncGoogleMutation.isPending ? "Синхронизация…" : "Sync Google Sheets"}
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            type="button"
+            disabled={isSyncing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <UploadIcon size={15} />
+            {syncExcelMutation.isPending ? "Загрузка…" : "Загрузить из файла"}
+          </button>
+          <input
+            ref={fileInputRef}
+            className="hiddenInput"
+            type="file"
+            accept=".xlsx,.csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) syncExcelMutation.mutate(file);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="filterRow">
+        <span className="monoLabel" style={{ paddingBottom: 9 }}>
+          Фильтры
+        </span>
+        <label className="filterField">
+          <span className="monoLabel">Категория</span>
+          <select value={category} onChange={(e) => changeFilter(() => setCategory(e.target.value))} style={{ minWidth: 180 }}>
+            <option value="">Все категории</option>
+            {categoryOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="filterField">
+          <span className="monoLabel">Батарея</span>
+          <select value={battery} onChange={(e) => changeFilter(() => setBattery(e.target.value))}>
+            <option value="">Все товары</option>
+            <option value="yes">С батареей</option>
+            <option value="no">Без батареи</option>
+          </select>
+        </label>
+      </div>
+
+      <article className="card" data-glow style={{ padding: "12px 12px 8px", animationDelay: "0.12s" }}>
+        <div className="gtHead" style={{ gridTemplateColumns: COLS }}>
+          <span>ID</span>
+          <span>Название</span>
+          <span>SKU</span>
+          <span>Категория</span>
+          <span>EAN</span>
+          <span>Battery</span>
+          <span />
+        </div>
+
+        {productsQuery.isLoading ? (
+          <div className="emptyPanel">Загрузка товаров...</div>
+        ) : pageProducts.length === 0 ? (
+          <div className="emptyPanel">{search || category || battery ? "Ничего не найдено." : "База товаров пуста."}</div>
+        ) : (
+          pageProducts.map((p) => (
+            <div key={p.id} className="gtRow" style={{ gridTemplateColumns: COLS, cursor: "pointer" }} onClick={() => openEdit(p)}>
+              <span className="cellId">{p.product_id}</span>
+              <span className="cellName">{p.name ?? "—"}</span>
+              <span className="cellMono">{p.sku ?? "—"}</span>
+              <span style={{ fontSize: 13, color: "var(--text-mid)" }}>{p.category ?? "—"}</span>
+              <span className="cellMono">{p.ean ?? "—"}</span>
+              <span>
+                {p.battery_flag ? <span className="batPill">● BAT</span> : <span className="dash">—</span>}
+              </span>
+              <span style={{ textAlign: "right" }}>
+                <button
+                  className="rowDelete"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(p);
+                  }}
+                >
+                  Удалить
+                </button>
+              </span>
             </div>
-            <div className="row" style={{ alignItems: "flex-start" }}>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>product_id *</span>
-                <input
-                  type="number"
-                  value={form.product_id}
-                  onChange={(e) => setField("product_id", e.target.value)}
-                  required
-                />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 2 }}>
-                <span>Название</span>
-                <input
-                  value={form.name}
-                  onChange={(e) => setField("name", e.target.value)}
-                />
-              </label>
-            </div>
-            <div className="row" style={{ alignItems: "flex-start" }}>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>SKU</span>
-                <input value={form.sku} onChange={(e) => setField("sku", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Категория</span>
-                <input value={form.category} onChange={(e) => setField("category", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>EAN</span>
-                <input type="number" value={form.ean} onChange={(e) => setField("ean", e.target.value)} />
-              </label>
-            </div>
-            <div className="row" style={{ margin: 0, gap: 20 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  style={{ width: "auto" }}
-                  checked={form.battery_flag}
-                  onChange={(e) => setField("battery_flag", e.target.checked)}
-                />
-                <span>Battery</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  style={{ width: "auto" }}
-                  checked={form.is_dangerous}
-                  onChange={(e) => setField("is_dangerous", e.target.checked)}
-                />
-                <span>Опасный груз</span>
-              </label>
+          ))
+        )}
+
+        <Pagination page={safePage} totalPages={totalPages} onPage={setPage} />
+      </article>
+
+      <Modal
+        open={modalMode === "add" || modalMode === "edit"}
+        onClose={() => {
+          if (!createOrUpdate.isPending) closeForm();
+        }}
+        title={modalMode === "add" ? "Новый товар" : "Редактирование товара"}
+      >
+        <form
+          className="modalForm"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await createOrUpdate.mutateAsync();
+          }}
+        >
+          <div className="modalBody">
+            <div className="modalSection">
+              <div className="modalSectionLabel">Основные данные</div>
+              <div className="formGrid idName">
+                <label className="field">
+                  <span>product_id *</span>
+                  <input type="number" value={form.product_id} onChange={(e) => setField("product_id", e.target.value)} required />
+                </label>
+                <label className="field">
+                  <span>Название</span>
+                  <input value={form.name} onChange={(e) => setField("name", e.target.value)} />
+                </label>
+              </div>
+              <div className="formGrid c3">
+                <label className="field">
+                  <span>SKU</span>
+                  <input value={form.sku} onChange={(e) => setField("sku", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Категория</span>
+                  <input value={form.category} onChange={(e) => setField("category", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>EAN</span>
+                  <input type="number" value={form.ean} onChange={(e) => setField("ean", e.target.value)} />
+                </label>
+              </div>
+              <div className="row" style={{ gap: 26 }}>
+                <label className="checkboxLabel">
+                  <input type="checkbox" checked={form.battery_flag} onChange={(e) => setField("battery_flag", e.target.checked)} />
+                  Battery
+                </label>
+                <label className="checkboxLabel">
+                  <input type="checkbox" checked={form.is_dangerous} onChange={(e) => setField("is_dangerous", e.target.checked)} />
+                  Опасный груз
+                </label>
+              </div>
             </div>
 
-            <div style={{ fontWeight: 700, color: "#a09080", fontSize: 12, marginBottom: -4, marginTop: 4 }}>
-              Мастербокс
-            </div>
-            <div className="row" style={{ alignItems: "flex-start" }}>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Длина (мм)</span>
-                <input type="number" value={form.masterbox_length_mm} onChange={(e) => setField("masterbox_length_mm", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Ширина (мм)</span>
-                <input type="number" value={form.masterbox_width_mm} onChange={(e) => setField("masterbox_width_mm", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Высота (мм)</span>
-                <input type="number" value={form.masterbox_height_mm} onChange={(e) => setField("masterbox_height_mm", e.target.value)} />
-              </label>
-            </div>
-            <div className="row" style={{ alignItems: "flex-start" }}>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Шт. в мастербоксе</span>
-                <input type="number" value={form.qty_of_masterbox} onChange={(e) => setField("qty_of_masterbox", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Вес мастербокса (кг)</span>
-                <input type="number" step="0.01" value={form.masterbox_weight_kg} onChange={(e) => setField("masterbox_weight_kg", e.target.value)} />
-              </label>
-            </div>
-
-            <div style={{ fontWeight: 700, color: "#a09080", fontSize: 12, marginBottom: -4, marginTop: 4 }}>
-              Паллет
-            </div>
-            <div className="row" style={{ alignItems: "flex-start" }}>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Длина (мм)</span>
-                <input type="number" value={form.pallet_length_mm} onChange={(e) => setField("pallet_length_mm", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Ширина (мм)</span>
-                <input type="number" value={form.pallet_width_mm} onChange={(e) => setField("pallet_width_mm", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Высота (мм)</span>
-                <input type="number" value={form.pallet_height_mm} onChange={(e) => setField("pallet_height_mm", e.target.value)} />
-              </label>
-            </div>
-            <div className="row" style={{ alignItems: "flex-start" }}>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Шт. на паллете</span>
-                <input type="number" value={form.qty_of_pallet} onChange={(e) => setField("qty_of_pallet", e.target.value)} />
-              </label>
-              <label className="field" style={{ marginBottom: 0, flex: 1 }}>
-                <span>Вес паллеты (кг)</span>
-                <input type="number" step="0.01" value={form.pallet_weight_kg} onChange={(e) => setField("pallet_weight_kg", e.target.value)} />
-              </label>
+            <div className="modalSection">
+              <div className="modalSectionLabel">Мастербокс</div>
+              <div className="formGrid c3">
+                <label className="field">
+                  <span>Длина (мм)</span>
+                  <input type="number" value={form.masterbox_length_mm} onChange={(e) => setField("masterbox_length_mm", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Ширина (мм)</span>
+                  <input type="number" value={form.masterbox_width_mm} onChange={(e) => setField("masterbox_width_mm", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Высота (мм)</span>
+                  <input type="number" value={form.masterbox_height_mm} onChange={(e) => setField("masterbox_height_mm", e.target.value)} />
+                </label>
+              </div>
+              <div className="formGrid c2" style={{ marginBottom: 0 }}>
+                <label className="field">
+                  <span>Шт. в мастербоксе</span>
+                  <input type="number" value={form.qty_of_masterbox} onChange={(e) => setField("qty_of_masterbox", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Вес мастербокса (кг)</span>
+                  <input type="number" step="0.01" value={form.masterbox_weight_kg} onChange={(e) => setField("masterbox_weight_kg", e.target.value)} />
+                </label>
+              </div>
             </div>
 
-            <div className="row" style={{ justifyContent: "flex-end", margin: 0 }}>
-              <button className="button secondary" type="button" onClick={closeForm} disabled={createOrUpdate.isPending}>
+            <div className="modalSection" style={{ marginBottom: 0 }}>
+              <div className="modalSectionLabel">Паллет</div>
+              <div className="formGrid c3">
+                <label className="field">
+                  <span>Длина (мм)</span>
+                  <input type="number" value={form.pallet_length_mm} onChange={(e) => setField("pallet_length_mm", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Ширина (мм)</span>
+                  <input type="number" value={form.pallet_width_mm} onChange={(e) => setField("pallet_width_mm", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Высота (мм)</span>
+                  <input type="number" value={form.pallet_height_mm} onChange={(e) => setField("pallet_height_mm", e.target.value)} />
+                </label>
+              </div>
+              <div className="formGrid c2" style={{ marginBottom: 0 }}>
+                <label className="field">
+                  <span>Шт. на паллете</span>
+                  <input type="number" value={form.qty_of_pallet} onChange={(e) => setField("qty_of_pallet", e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Вес паллеты (кг)</span>
+                  <input type="number" step="0.01" value={form.pallet_weight_kg} onChange={(e) => setField("pallet_weight_kg", e.target.value)} />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="modalFooter">
+            <button className="btn btn-ghost" type="button" onClick={closeForm} disabled={createOrUpdate.isPending}>
+              Отмена
+            </button>
+            <button className="btn btn-invert" type="submit" disabled={createOrUpdate.isPending}>
+              {createOrUpdate.isPending ? "Сохранение…" : modalMode === "add" ? "Добавить" : "Сохранить"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => {
+          if (!deleteMutation.isPending) setConfirmDelete(null);
+        }}
+        title="Удалить товар?"
+        widthClassName="modalCardNarrow modalCardDanger"
+      >
+        {confirmDelete ? (
+          <>
+            <div className="modalBody">
+              <p style={{ margin: 0, color: "var(--text-mid)", fontSize: 14 }}>
+                {confirmDelete.name || `ID ${confirmDelete.product_id}`} будет удалён из базы без возможности восстановления.
+              </p>
+            </div>
+            <div className="modalFooter">
+              <button className="btn btn-ghost" type="button" disabled={deleteMutation.isPending} onClick={() => setConfirmDelete(null)}>
                 Отмена
               </button>
-              <button className="button primary" type="submit" disabled={createOrUpdate.isPending}>
-                {createOrUpdate.isPending ? "Сохранение..." : modalMode === "add" ? "Добавить" : "Сохранить"}
+              <button
+                className="btn btn-danger"
+                type="button"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate(confirmDelete.id)}
+              >
+                {deleteMutation.isPending ? "Удаляем…" : "Удалить"}
               </button>
             </div>
-          </form>
-        </Modal>
-
-        <Modal
-          open={!!confirmDelete}
-          onClose={() => { if (!deleteMutation.isPending) setConfirmDelete(null); }}
-          title="Подтверждение удаления"
-          widthClassName="modalCardNarrow"
-        >
-          {confirmDelete && (
-            <div className="stack">
-              <p style={{ margin: 0, color: "#d6deff" }}>
-                Удалить товар <strong>{confirmDelete.name || `ID ${confirmDelete.product_id}`}</strong>?
-              </p>
-              <div className="row" style={{ justifyContent: "flex-end", margin: 0 }}>
-                <button
-                  className="button secondary"
-                  type="button"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => setConfirmDelete(null)}
-                >
-                  Отмена
-                </button>
-                <button
-                  className="button danger"
-                  type="button"
-                  disabled={deleteMutation.isPending}
-                  onClick={async () => { await deleteMutation.mutateAsync(confirmDelete.id); }}
-                >
-                  {deleteMutation.isPending ? "Удаляем..." : "Удалить"}
-                </button>
-              </div>
-            </div>
-          )}
-        </Modal>
-      </main>
-    </>
+          </>
+        ) : null}
+      </Modal>
+    </AppFrame>
   );
 }

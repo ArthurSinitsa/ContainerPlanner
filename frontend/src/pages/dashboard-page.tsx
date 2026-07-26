@@ -1,20 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate, Link } from "react-router-dom";
-import { Header } from "../components/header";
+import { useState } from "react";
+import { AppFrame } from "../components/app-frame";
+import { HeroFrame } from "../components/icons";
 import { CalculationHistoryList } from "../features/calculations/history-list";
 import { ManualCalculationForm } from "../features/calculations/manual-form";
 import { UploadCalculationForm } from "../features/calculations/upload-form";
 import { api } from "../lib/api";
-import type { CalculationRequestCreate } from "../lib/types";
-import { useState } from "react";
 
-const HISTORY_PREVIEW = 10;
+const HISTORY_PREVIEW = 5;
+
+function errorToText(err: unknown): string {
+  if (!err) return "";
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
 
 export function DashboardPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [activeForm, setActiveForm] = useState<"upload" | "manual">("upload");
+  const [containerTypeId, setContainerTypeId] = useState(0);
 
   const containersQuery = useQuery({ queryKey: ["containers"], queryFn: api.getContainers });
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: api.getProducts });
@@ -40,140 +52,148 @@ export function DashboardPage() {
     }
   });
 
-  const mapToBackendProductIds = (payload: CalculationRequestCreate): CalculationRequestCreate => {
-    if (!productsQuery.data) return payload;
-    const byLocalId = new Map(productsQuery.data.map((p) => [p.id, p.product_id]));
-    return {
-      ...payload,
-      items: payload.items.map((item) => ({
-        ...item,
-        product_id: byLocalId.get(item.product_id) ?? item.product_id
-      }))
-    };
-  };
-
-  const errorToText = (err: unknown): string => {
-    if (!err) return "";
-    if (err instanceof Error) return err.message;
-    if (typeof err === "string") return err;
-    try { return JSON.stringify(err); } catch { return String(err); }
-  };
-
   const globalError = containersQuery.error || productsQuery.error || calculationsQuery.error || null;
   const loading = containersQuery.isLoading || productsQuery.isLoading || calculationsQuery.isLoading;
 
   if (loading) {
     return (
-      <>
-        <Header />
-        <main className="layout"><div className="card">Загрузка данных...</div></main>
-      </>
+      <AppFrame>
+        <div className="card">Загрузка данных...</div>
+      </AppFrame>
     );
   }
 
-  if (globalError) {
+  if (globalError || !containersQuery.data || !productsQuery.data || !calculationsQuery.data) {
     return (
-      <>
-        <Header />
-        <main className="layout">
-          <div className="card">
-            <div className="error">
-              Не удалось загрузить данные. Проверьте соединение с сервером и попробуйте обновить страницу.
-            </div>
+      <AppFrame>
+        <div className="card">
+          <div className="error">
+            Не удалось загрузить данные. Проверьте соединение с сервером и попробуйте обновить страницу.
           </div>
-        </main>
-      </>
+        </div>
+      </AppFrame>
     );
   }
 
-  if (!containersQuery.data || !productsQuery.data || !calculationsQuery.data) {
-    return (
-      <>
-        <Header />
-        <main className="layout">
-          <div className="card">
-            Не удалось загрузить данные. Попробуйте обновить страницу.
-          </div>
-        </main>
-      </>
-    );
-  }
-
-  const recentCalculations = calculationsQuery.data.slice(0, HISTORY_PREVIEW);
-  const hasMore = calculationsQuery.data.length > HISTORY_PREVIEW;
+  const containers = containersQuery.data;
+  const products = productsQuery.data;
+  const calculations = calculationsQuery.data;
+  const recent = calculations.slice(0, HISTORY_PREVIEW);
 
   return (
-    <>
-      <Header />
-      <main className="layout">
-        {manualMutation.error ? <div className="error">{errorToText(manualMutation.error)}</div> : null}
-        {uploadMutation.error ? <div className="error">{errorToText(uploadMutation.error)}</div> : null}
-
-        <section className="grid">
-          <article className="card full">
-            <div className="formSwitchControls">
-              {activeForm === "upload" ? (
-                <button className="button secondary" onClick={() => setActiveForm("manual")} type="button">
-                  Ручной ввод →
-                </button>
-              ) : (
-                <button className="button secondary" onClick={() => setActiveForm("upload")} type="button">
-                  ← Загрузка файлом
-                </button>
-              )}
-            </div>
-            <AnimatePresence mode="wait" initial={false}>
-              {activeForm === "upload" ? (
-                <motion.div
-                  key="uploadForm"
-                  initial={{ x: 40, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: -40, opacity: 0 }}
-                  transition={{ duration: 0.28, ease: "easeOut" }}
-                >
-                  <UploadCalculationForm
-                    containers={containersQuery.data}
-                    isSubmitting={uploadMutation.isPending}
-                    onSubmit={async (payload) => { await uploadMutation.mutateAsync(payload); }}
-                  />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="manualForm"
-                  initial={{ x: -40, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 40, opacity: 0 }}
-                  transition={{ duration: 0.28, ease: "easeOut" }}
-                >
-                  <ManualCalculationForm
-                    containers={containersQuery.data}
-                    products={productsQuery.data}
-                    isSubmitting={manualMutation.isPending}
-                    onSubmit={async (payload) => {
-                      await manualMutation.mutateAsync(mapToBackendProductIds(payload));
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </article>
-
-          <article className="card full">
-            <CalculationHistoryList
-              entries={recentCalculations}
-              isLoading={calculationsQuery.isFetching}
-              onRefresh={() => { void calculationsQuery.refetch(); }}
-            />
-            {hasMore && (
-              <div style={{ marginTop: 12, textAlign: "center" }}>
-                <Link to="/history" className="button secondary">
-                  Вся история расчётов ({calculationsQuery.data.length}) →
-                </Link>
+    <AppFrame>
+      <section className="hero">
+        <div className="between heroHeadRow" style={{ alignItems: "flex-end", gap: 40, paddingBottom: 20 }}>
+          <div style={{ maxWidth: 640 }}>
+            <div className="heroEyebrow">РАСЧЁТ УПАКОВКИ</div>
+            <p className="heroLead">
+              Загрузите заявку файлом или соберите её вручную — алгоритм разложит груз по контейнерам с учётом
+              веса, габаритов и бизнес-правил.
+            </p>
+            <div className="heroStats">
+              <div>
+                <div className="heroStatValue">{containers.length}</div>
+                <div className="heroStatLabel">ТИПА КОНТЕЙНЕРОВ</div>
               </div>
+              <div className="heroStatDivider" />
+              <div>
+                <div className="heroStatValue">{products.length}</div>
+                <div className="heroStatLabel">ТОВАРОВ В БАЗЕ</div>
+              </div>
+              <div className="heroStatDivider" />
+              <div>
+                <div className="heroStatValue">{calculations.length}</div>
+                <div className="heroStatLabel">РАСЧЁТОВ</div>
+              </div>
+            </div>
+          </div>
+          <HeroFrame className="floatFrame" />
+        </div>
+      </section>
+
+      {manualMutation.error ? <div className="error">{errorToText(manualMutation.error)}</div> : null}
+      {uploadMutation.error ? <div className="error">{errorToText(uploadMutation.error)}</div> : null}
+
+      <section className="grid composer">
+        <article className="card" data-glow style={{ animationDelay: "0.1s" }}>
+          <div className="tabRow">
+            <button
+              type="button"
+              className={`tab${activeForm === "upload" ? " active" : ""}`}
+              onClick={() => setActiveForm("upload")}
+            >
+              Загрузка файлом
+            </button>
+            <button
+              type="button"
+              className={`tab${activeForm === "manual" ? " active" : ""}`}
+              onClick={() => setActiveForm("manual")}
+            >
+              Ручной ввод
+            </button>
+          </div>
+
+          <div className="field" style={{ marginBottom: 20 }}>
+            <span className="monoLabel">Тип контейнера</span>
+            <select value={containerTypeId} onChange={(e) => setContainerTypeId(Number(e.target.value))}>
+              <option value={0}>Выберите контейнер</option>
+              {containers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <AnimatePresence mode="wait" initial={false}>
+            {activeForm === "upload" ? (
+              <motion.div
+                key="upload"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <UploadCalculationForm
+                  containerTypeId={containerTypeId}
+                  isSubmitting={uploadMutation.isPending}
+                  onSubmit={async (payload) => {
+                    await uploadMutation.mutateAsync(payload);
+                  }}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="manual"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ManualCalculationForm
+                  containerTypeId={containerTypeId}
+                  products={products}
+                  isSubmitting={manualMutation.isPending}
+                  onSubmit={async (payload) => {
+                    await manualMutation.mutateAsync(payload);
+                  }}
+                />
+              </motion.div>
             )}
-          </article>
-        </section>
-      </main>
-    </>
+          </AnimatePresence>
+        </article>
+
+        <article className="card" data-glow style={{ padding: 24, animationDelay: "0.2s" }}>
+          <div className="cardHeader">
+            <span className="cardTitle">История расчётов</span>
+            <span className="monoLabel">Последние {HISTORY_PREVIEW}</span>
+          </div>
+          <CalculationHistoryList entries={recent} />
+          <Link to="/history" className="historyMore">
+            Вся история ({calculations.length})
+          </Link>
+        </article>
+      </section>
+    </AppFrame>
   );
 }

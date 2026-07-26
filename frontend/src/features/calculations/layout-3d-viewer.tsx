@@ -1,11 +1,14 @@
 import { OrbitControls, Text } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { motion } from "framer-motion";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import * as THREE from "three";
 import type { PackedBox } from "../../lib/types";
 
 interface Layout3DViewerProps {
   boxes: PackedBox[];
+  showLabels?: boolean;
+  activeName?: string;
   containerShell?: {
     width: number;
     height: number;
@@ -17,23 +20,28 @@ interface Layout3DViewerProps {
   };
 }
 
-export function Layout3DViewer({
-  boxes,
-  showLabels,
-  containerShell
-}: Layout3DViewerProps & { showLabels?: boolean }) {
+export function Layout3DViewer({ boxes, showLabels, activeName, containerShell }: Layout3DViewerProps) {
   const MAX_RENDER_ITEMS = 420;
   const safeBoxes = boxes.slice(0, MAX_RENDER_ITEMS);
+
+  // Одна геометрия единичного куба переиспользуется всеми коробками и каркасом
+  // через scale — это дёшево и не плодит объекты.
+  const unitBox = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const unitEdges = useMemo(() => new THREE.EdgesGeometry(unitBox), [unitBox]);
+  useEffect(() => {
+    return () => {
+      unitBox.dispose();
+      unitEdges.dispose();
+    };
+  }, [unitBox, unitEdges]);
+
   const bounds = useMemo(() => {
     const shellW = containerShell?.width ?? 0;
     const shellH = containerShell?.height ?? 0;
     const shellD = containerShell?.depth ?? 0;
 
     if (!safeBoxes.length) {
-      const w = shellW || 1000;
-      const h = shellH || 1000;
-      const d = shellD || 1000;
-      return { maxX: w, maxY: h, maxZ: d };
+      return { maxX: shellW || 1000, maxY: shellH || 1000, maxZ: shellD || 1000 };
     }
 
     return {
@@ -44,15 +52,25 @@ export function Layout3DViewer({
   }, [safeBoxes, containerShell]);
 
   const rawMaxDim = Math.max(bounds.maxX, bounds.maxY, bounds.maxZ);
-  const targetMaxDim = 900; // "world" size cap for stable camera + performance
+  const targetMaxDim = 900;
   const scale = rawMaxDim > targetMaxDim ? targetMaxDim / rawMaxDim : 1;
   const maxDim = rawMaxDim * scale;
   const cameraDistance = Math.max(1200, maxDim * 1.8);
   const shouldShowLabels = showLabels ?? safeBoxes.length <= 100;
-  const freePercent =
-    containerShell?.volumeUtilizationPercent != null
-      ? Math.max(0, 100 - containerShell.volumeUtilizationPercent)
-      : null;
+
+  const fillPercent = containerShell?.volumeUtilizationPercent ?? null;
+  const freePercent = fillPercent != null ? Math.max(0, 100 - fillPercent) : null;
+
+  const shell = containerShell
+    ? {
+        w: containerShell.width * scale,
+        h: containerShell.height * scale,
+        d: containerShell.depth * scale,
+        cx: (containerShell.width / 2) * scale,
+        cy: (containerShell.height / 2) * scale,
+        cz: (containerShell.depth / 2) * scale
+      }
+    : null;
 
   return (
     <motion.div
@@ -61,61 +79,46 @@ export function Layout3DViewer({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
     >
-      {containerShell?.volumeUtilizationPercent != null ? (
+      {fillPercent != null ? (
         <div className="viewerOccupancy">
-          <div>
-            Заполнение: <strong>{containerShell.volumeUtilizationPercent.toFixed(1)}%</strong>
+          <div className="viewerOccupancyTop">
+            <span className="viewerOccupancyLabel">ЗАПОЛНЕНИЕ</span>
+            <span className="viewerOccupancyValue">{fillPercent.toFixed(1)}%</span>
           </div>
-          <div>
-            Свободно: <strong>{(freePercent ?? 0).toFixed(1)}%</strong>
+          <div className="viewerFill">
+            <div className="viewerFillBar" style={{ width: `${Math.min(100, fillPercent)}%` }} />
+          </div>
+          <div className="viewerOccupancyFree">
+            Свободно {(freePercent ?? 0).toFixed(1)}%{activeName ? ` · ${activeName}` : ""}
           </div>
         </div>
       ) : null}
+
+      <div className="viewerHint">ПЕРЕТАЩИТЕ — ВРАЩЕНИЕ · КОЛЕСО — ЗУМ</div>
+
       <Canvas
-        frameloop="demand"
-        dpr={[1, 1.25]}
-        camera={{
-          position: [cameraDistance, cameraDistance, cameraDistance],
-          fov: 35,
-          near: 0.1,
-          far: 100000
-        }}
-        gl={{ antialias: false, powerPreference: "high-performance", preserveDrawingBuffer: false }}
+        frameloop="always"
+        dpr={[1, 1.5]}
+        camera={{ position: [cameraDistance, cameraDistance, cameraDistance], fov: 35, near: 0.1, far: 100000 }}
+        gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
       >
-        <ambientLight intensity={0.5} />
-        <directionalLight
-          intensity={1.15}
-          position={[cameraDistance * 0.5, cameraDistance, cameraDistance * 0.8]}
-        />
+        <ambientLight intensity={0.7} />
+        <directionalLight intensity={0.85} position={[cameraDistance * 0.5, cameraDistance, cameraDistance * 0.8]} />
+        <directionalLight intensity={0.4} color="#b18cff" position={[-cameraDistance * 0.6, cameraDistance * 0.5, -cameraDistance * 0.5]} />
 
-        {containerShell ? (() => {
-          const cw = containerShell.width * scale;
-          const ch = containerShell.height * scale;
-          const cd = containerShell.depth * scale;
-          const cx = (containerShell.width / 2) * scale;
-          const cy = (containerShell.height / 2) * scale;
-          const cz = (containerShell.depth / 2) * scale;
+        {shell ? (
+          <group position={[shell.cx, shell.cy, shell.cz]}>
+            <mesh geometry={unitBox} scale={[shell.w, shell.h, shell.d]} renderOrder={-1}>
+              <meshStandardMaterial color="#b18cff" transparent opacity={0.04} depthWrite={false} />
+            </mesh>
+            <lineSegments geometry={unitEdges} scale={[shell.w, shell.h, shell.d]}>
+              <lineBasicMaterial color="#b18cff" transparent opacity={0.55} />
+            </lineSegments>
+          </group>
+        ) : null}
 
-          return (
-            <group position={[cx, cy, cz]} renderOrder={-1}>
-              <mesh renderOrder={-2}>
-                <boxGeometry args={[cw, ch, cd]} />
-                <meshStandardMaterial color="#c97d3c" transparent opacity={0.05} depthWrite={false} />
-              </mesh>
-              <mesh renderOrder={-1}>
-                <boxGeometry args={[cw, ch, cd]} />
-                <meshBasicMaterial color="#c97d3c" transparent opacity={0.28} wireframe depthWrite={false} />
-              </mesh>
-            </group>
-          );
-        })() : null}
+        <gridHelper args={[maxDim * 3, 26, "#5a5478", "#231f33"]} />
 
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
-          <planeGeometry args={[maxDim * 5, maxDim * 5]} />
-          <meshStandardMaterial color="#110d09" />
-        </mesh>
-
-        <gridHelper args={[maxDim * 5, 45, "#8c5c28", "#2a1e12"]} />
         {safeBoxes.map((box, idx) => {
           const w = box.width * scale;
           const h = box.height * scale;
@@ -127,42 +130,36 @@ export function Layout3DViewer({
 
           return (
             <group key={box.id} position={[cx, cy, cz]}>
-              <mesh>
-                <boxGeometry args={[w, h, d]} />
-                <meshStandardMaterial color={box.color} transparent opacity={0.88} />
+              <mesh geometry={unitBox} scale={[w, h, d]}>
+                <meshStandardMaterial color={box.color} transparent opacity={0.92} roughness={0.5} metalness={0.08} />
               </mesh>
+              <lineSegments geometry={unitEdges} scale={[w, h, d]}>
+                <lineBasicMaterial color="#ffffff" transparent opacity={0.13} />
+              </lineSegments>
               {labelAllowed ? (
-                <Text
-                  position={[0, h / 2 + 6, 0]}
-                  fontSize={Math.max(10, 18 * scale)}
-                  color="#f4f7ff"
-                  anchorX="center"
-                  anchorY="middle"
-                >
+                <Text position={[0, h / 2 + 6, 0]} fontSize={Math.max(10, 18 * scale)} color="#f4f7ff" anchorX="center" anchorY="middle">
                   {box.label}
                 </Text>
               ) : null}
             </group>
           );
         })}
+
         <OrbitControls
           makeDefault
-          target={
-            containerShell
-              ? [
-                  (containerShell.width / 2) * scale,
-                  (containerShell.height / 2) * scale,
-                  (containerShell.depth / 2) * scale
-                ]
-              : [0, 0, 0]
-          }
+          autoRotate
+          autoRotateSpeed={0.7}
+          enableDamping
+          dampingFactor={0.08}
+          target={shell ? [shell.cx, shell.cy, shell.cz] : [0, 0, 0]}
           minDistance={maxDim * 0.45}
           maxDistance={maxDim * 20}
         />
       </Canvas>
+
       {boxes.length > MAX_RENDER_ITEMS ? (
         <div className="viewerNotice">
-          Показаны первые {MAX_RENDER_ITEMS} объектов из {boxes.length} для стабильной работы 3D.
+          Показаны первые {MAX_RENDER_ITEMS} из {boxes.length} объектов
         </div>
       ) : null}
     </motion.div>

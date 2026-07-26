@@ -228,7 +228,7 @@ std::vector<ContainerResult> pack_items(
     float max_weight
 ) {
     // Эвристика 1: по убыванию объёма
-    auto by_volume = items;
+    auto by_volume = items;св
     std::sort(by_volume.begin(), by_volume.end(), [](const Item& a, const Item& b) {
         return (long long)a.w * a.l * a.h > (long long)b.w * b.l * b.h;
     });

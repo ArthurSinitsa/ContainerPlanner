@@ -42,6 +42,42 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const utf8 = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(utf8[1]);
+    } catch {
+      /* ignore */
+    }
+  }
+  const plain = header.match(/filename="?([^";]+)"?/i);
+  return plain?.[1] ?? null;
+}
+
+/**
+ * Скачивает файл-вложение с сервера (blob → браузерная загрузка).
+ * Бросает исключение при не-2xx (напр. 404, если серверная выгрузка ещё не готова).
+ */
+async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const url = `${API_BASE_URL}${path}`;
+  const response = await fetch(url, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`API ${response.status}: ${response.statusText}`);
+  }
+  const blob = await response.blob();
+  const name = filenameFromDisposition(response.headers.get("Content-Disposition")) ?? fallbackName;
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export const api = {
   getContainers: () => request<ContainerType[]>("/api/containers/"),
   getContainerById: (id: number) => request<ContainerType>(`/api/containers/${id}/`),
@@ -139,5 +175,11 @@ export const api = {
       throw new Error(`API ${response.status}: ${body || response.statusText}`);
     }
     return await response.json() as Promise<FileUploadSuccessResponse>;
-  }
+  },
+
+  // Серверная генерация .xlsx (эндпоинты появятся на бэке позже):
+  // образец файла для заявки и готовая раскладка по контейнерам.
+  downloadRequestTemplate: () => downloadFile("/api/calculate/template/", "shablon_zayavki.xlsx"),
+  downloadRequestExport: (id: number) =>
+    downloadFile(`/api/calculate/${id}/export/`, `raskladka_${id}.xlsx`)
 };

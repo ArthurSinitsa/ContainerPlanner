@@ -1,20 +1,19 @@
 import { Link } from "react-router-dom";
+import { CheckIcon, CrossIcon } from "../../components/icons";
 import type { CalculationRequestList, StatusEnum } from "../../lib/types";
 
 interface HistoryListProps {
   entries: CalculationRequestList[];
-  isLoading: boolean;
-  onRefresh: () => void;
 }
 
 export function formatDateTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   try {
-    return new Intl.DateTimeFormat(undefined, {
-      year: "numeric",
-      month: "2-digit",
+    return new Intl.DateTimeFormat("ru-RU", {
       day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
       hour: "2-digit",
       minute: "2-digit"
     }).format(d);
@@ -23,12 +22,33 @@ export function formatDateTime(iso: string) {
   }
 }
 
+export function statusLabel(status: StatusEnum): string {
+  switch (status) {
+    case "COMPLETED":
+      return "Завершён";
+    case "FAILED":
+      return "Ошибка";
+    case "PROCESSING":
+      return "В работе";
+    default:
+      return "В очереди";
+  }
+}
+
 export function StatusMarker({ status }: { status: StatusEnum }) {
   if (status === "COMPLETED") {
-    return <span className="statusMarker completed">✓</span>;
+    return (
+      <span className="statusMarker completed">
+        <CheckIcon size={13} />
+      </span>
+    );
   }
   if (status === "FAILED") {
-    return <span className="statusMarker failed">✕</span>;
+    return (
+      <span className="statusMarker failed">
+        <CrossIcon size={12} />
+      </span>
+    );
   }
   return (
     <span className="statusMarker running">
@@ -37,37 +57,25 @@ export function StatusMarker({ status }: { status: StatusEnum }) {
   );
 }
 
-export function CalculationHistoryList({ entries, isLoading, onRefresh }: HistoryListProps) {
+export function CalculationHistoryList({ entries }: HistoryListProps) {
+  if (entries.length === 0) {
+    return <div className="emptyPanel">Пока нет расчётов.</div>;
+  }
   return (
-    <div className="stack">
-      <div className="row between">
-        <h2>История расчетов</h2>
-        <button className="button secondary" type="button" onClick={onRefresh}>
-          Обновить
-        </button>
-      </div>
-      <div className="history">
-        {entries.length === 0 ? (
-          <p>Пока нет расчетов.</p>
-        ) : (
-          entries.map((entry) => (
-            <div key={entry.id}>
-              <Link className="historyItem" to={`/calculations/${entry.id}`}>
-                <div className="historyRow">
-                  <div className="historyMeta">
-                    <div className="historyTitleRow">
-                      <strong>Заявка #{entry.id}</strong>
-                      <span className="historyCreatedAt">{formatDateTime(entry.created_at)}</span>
-                    </div>
-                    <span>{entry.description || "Без описания"}</span>
-                  </div>
-                  <StatusMarker status={entry.status} />
-                </div>
-              </Link>
-            </div>
-          ))
-        )}
-      </div>
+    <div className="historyList">
+      {entries.map((entry) => (
+        <Link key={entry.id} className="historyItem" to={`/calculations/${entry.id}`}>
+          <StatusMarker status={entry.status} />
+          <span className="historyItemMain">
+            <span className="historyItemTitle">{entry.description || `Заявка #${entry.id}`}</span>
+            <span className="historyItemMeta">
+              #{entry.id} · {statusLabel(entry.status)}
+              {entry.source_file ? " · файл" : ""}
+            </span>
+          </span>
+          <span className="historyItemTime">{formatDateTime(entry.created_at)}</span>
+        </Link>
+      ))}
     </div>
   );
 }

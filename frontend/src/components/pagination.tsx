@@ -1,3 +1,5 @@
+import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
+
 interface PaginationProps {
   page: number;
   totalPages: number;
@@ -22,8 +24,9 @@ export function Pagination({ page, totalPages, onPage }: PaginationProps) {
         type="button"
         disabled={page === 1}
         onClick={() => onPage(page - 1)}
+        aria-label="Предыдущая страница"
       >
-        ←
+        <ChevronLeftIcon size={15} />
       </button>
       {pages.map((p) => (
         <button
@@ -40,8 +43,9 @@ export function Pagination({ page, totalPages, onPage }: PaginationProps) {
         type="button"
         disabled={page === totalPages}
         onClick={() => onPage(page + 1)}
+        aria-label="Следующая страница"
       >
-        →
+        <ChevronRightIcon size={15} />
       </button>
     </div>
   );
