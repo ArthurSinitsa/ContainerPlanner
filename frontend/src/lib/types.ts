@@ -52,7 +52,9 @@ export interface CalculationRequestList {
   created_at: string;
   status: StatusEnum;
   description?: string;
+  /** URL файла (имя в нём percent-энкодится) — для отображения используйте source_file_name */
   source_file: string | null;
+  source_file_name?: string | null;
 }
 
 export interface CalculationRequestDetail {
@@ -61,6 +63,7 @@ export interface CalculationRequestDetail {
   status: StatusEnum;
   description?: string;
   source_file: string | null;
+  source_file_name?: string | null;
   items: RequestItem[];
   results: PackingResult[];
 }

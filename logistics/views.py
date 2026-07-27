@@ -5,18 +5,19 @@ from django.db import transaction
 from django.http import FileResponse
 
 logger = logging.getLogger(__name__)
-from rest_framework import viewsets, status, serializers
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample, inline_serializer
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample
 
 from .models import Product, ContainerType, RequestItem
 from .serializers import (ProductSerializer, FileUploadSerializer, ContainerTypeSerializer,
                           CalculationFileUploadSerializer, CalculationRequest, CalculationRequestCreateSerializer,
                           CalculationRequestListSerializer, CalculationRequestDetailSerializer,
-                          CalculationStatusResponseSerializer, SyncResponseSerializer)
-from .services.exporter import PackingExcelExporter, PackingExportError
+                          CalculationStatusResponseSerializer, SyncResponseSerializer,
+                          ErrorResponseSerializer, CalculationAcceptedSerializer)
+from .services.exporter import ExportFileService, PackingExportError
 from .services.loader import GoogleSheetsLoader, FileLoader
 from .tasks import run_packing_task
 
@@ -201,24 +202,11 @@ class CalculationViewSet(viewsets.GenericViewSet):
         request=CalculationRequestCreateSerializer,
         responses={
             202: OpenApiResponse(
-                response=inline_serializer(
-                    name='FileUploadSuccessResponse',
-                    fields={
-                        'message': serializers.CharField(),
-                        'request_id': serializers.IntegerField(),
-                        'task_id': serializers.UUIDField(),
-                        'status_url': serializers.CharField(),
-                    }
-                ),
+                response=CalculationAcceptedSerializer,
                 description="Файл загружен. Расчет начался."
             ),
             400: OpenApiResponse(
-                response=inline_serializer(
-                    name='FileUploadErrorResponse',
-                    fields={
-                        'error': serializers.CharField()
-                    }
-                ),
+                response=ErrorResponseSerializer,
                 description="Ошибка валидации данных, обработки файла либо не найден контейнер/товар в базе"
             )
         },
@@ -297,24 +285,11 @@ class CalculationViewSet(viewsets.GenericViewSet):
         request=CalculationFileUploadSerializer,
         responses={
             202: OpenApiResponse(
-                response=inline_serializer(
-                    name='FileUploadSuccessResponse',
-                    fields={
-                        'message': serializers.CharField(),
-                        'request_id': serializers.IntegerField(),
-                        'task_id': serializers.UUIDField(),
-                        'status_url': serializers.CharField(),
-                    }
-                ),
+                response=CalculationAcceptedSerializer,
                 description="Файл загружен. Расчет начался."
             ),
             400: OpenApiResponse(
-                response=inline_serializer(
-                    name='FileUploadErrorResponse',
-                    fields={
-                        'error': serializers.CharField()
-                    }
-                ),
+                response=ErrorResponseSerializer,
                 description="Ошибка валидации данных, обработки файла либо не найден контейнер/товар в базе"
             )
         },
@@ -427,11 +402,7 @@ class CalculationViewSet(viewsets.GenericViewSet):
         responses={
             200: CalculationRequestDetailSerializer,
             404: OpenApiResponse(
-                response=inline_serializer(
-                    name='FileUploadErrorResponse',
-                    fields={
-                        'error': serializers.CharField()
-                    }),
+                response=ErrorResponseSerializer,
                 description="Заявка не найдена"
             )
         },
@@ -468,11 +439,7 @@ class CalculationViewSet(viewsets.GenericViewSet):
         responses={
             200: CalculationStatusResponseSerializer,
             404: OpenApiResponse(
-                response=inline_serializer(
-                    name='FileUploadErrorResponse',
-                    fields={
-                        'error': serializers.CharField()
-                    }),
+                response=ErrorResponseSerializer,
                 description="Заявка не найдена"
             )
         },
@@ -510,10 +477,7 @@ class CalculationViewSet(viewsets.GenericViewSet):
         responses={
             (200, XLSX_CONTENT_TYPE): OpenApiTypes.BINARY,
             503: OpenApiResponse(
-                response=inline_serializer(
-                    name='TemplateUnavailableResponse',
-                    fields={'error': serializers.CharField()}
-                ),
+                response=ErrorResponseSerializer,
                 description="Файл шаблона отсутствует на сервере"
             )
         }
@@ -549,17 +513,11 @@ class CalculationViewSet(viewsets.GenericViewSet):
         responses={
             (200, XLSX_CONTENT_TYPE): OpenApiTypes.BINARY,
             404: OpenApiResponse(
-                response=inline_serializer(
-                    name='ExportNotFoundResponse',
-                    fields={'error': serializers.CharField()}
-                ),
+                response=ErrorResponseSerializer,
                 description="Заявка не найдена"
             ),
             409: OpenApiResponse(
-                response=inline_serializer(
-                    name='ExportNotReadyResponse',
-                    fields={'error': serializers.CharField()}
-                ),
+                response=ErrorResponseSerializer,
                 description="Расчёт ещё не завершён либо завершился без результатов"
             )
         },
@@ -590,10 +548,10 @@ class CalculationViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_409_CONFLICT
             )
 
-        exporter = PackingExcelExporter(calc_request)
+        service = ExportFileService(calc_request)
 
         try:
-            stream = exporter.build()
+            export = service.get_or_create()
         except PackingExportError as e:
             return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
         except Exception as e:
@@ -604,8 +562,8 @@ class CalculationViewSet(viewsets.GenericViewSet):
             )
 
         return FileResponse(
-            stream,
+            export.file.open('rb'),
             as_attachment=True,
-            filename=exporter.filename,
+            filename=service.filename,
             content_type=XLSX_CONTENT_TYPE
         )

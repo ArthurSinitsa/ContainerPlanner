@@ -49,6 +49,9 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - REDIS_URL=redis://redis:6379/0
+      - FILE_RETENTION_DAYS=${FILE_RETENTION_DAYS:-30}
+    volumes:
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -68,6 +71,29 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - REDIS_URL=redis://redis:6379/0
+      - FILE_RETENTION_DAYS=${FILE_RETENTION_DAYS:-30}
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  celery-beat:
+    build: .
+    container_name: logistics_celery_beat
+    command: celery -A ContainerPlanner beat -l info -s /tmp/celerybeat-schedule
+    environment:
+      - DJANGO_SETTINGS_MODULE=ContainerPlanner.settings
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      - DB_HOST=db
+      - DB_NAME=${DB_NAME:-logistics_db}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - REDIS_URL=redis://redis:6379/0
+      - FILE_RETENTION_DAYS=${FILE_RETENTION_DAYS:-30}
     depends_on:
       db:
         condition: service_healthy
@@ -133,3 +159,4 @@ volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
+  media_data:

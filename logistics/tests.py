@@ -1,12 +1,36 @@
+import shutil
+import tempfile
+from datetime import timedelta
 from io import BytesIO
 
-from django.test import TestCase
+from django.core.files.base import ContentFile
+from django.test import TestCase, override_settings
+from django.utils import timezone
 from openpyxl import load_workbook
 
-from .models import CalculationRequest, ContainerType, PackingResult, Product
-from .services.exporter import PackingExcelExporter, PackingExportError
+from .models import CalculationExport, CalculationRequest, ContainerType, PackingResult, Product
+from .serializers import CalculationRequestListSerializer
+from .services.exporter import ExportFileService, PackingExcelExporter, PackingExportError
+from .tasks import cleanup_old_files
 
 XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+
+class TempMediaMixin:
+    """Изолированный MEDIA_ROOT на время теста, чтобы не мусорить в проекте."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._media_root = tempfile.mkdtemp(prefix='cp-test-media-')
+        cls._media_override = override_settings(MEDIA_ROOT=cls._media_root)
+        cls._media_override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls._media_override.disable()
+        shutil.rmtree(cls._media_root, ignore_errors=True)
 
 
 class ExportTestDataMixin:
@@ -110,29 +134,46 @@ class PackingExcelExporterTests(ExportTestDataMixin, TestCase):
             PackingExcelExporter(empty).build()
 
 
-class ExportEndpointTests(ExportTestDataMixin, TestCase):
+class ExportEndpointTests(TempMediaMixin, ExportTestDataMixin, TestCase):
+
+    def download(self, url) -> tuple:
+        """
+        GET + вычитывание тела + освобождение файлового дескриптора.
+
+        FileResponse держит файл открытым, а в Windows занятый файл нельзя ни
+        удалить, ни перезаписать. В бою дескриптор закрывает WSGI-сервер после
+        отдачи ответа; здесь закрываем только сам файл, а не response целиком —
+        response.close() шлёт сигнал request_finished, который рвёт соединение
+        с БД внутри тестовой транзакции.
+        """
+        response = self.client.get(url)
+        content = b"".join(response.streaming_content) if response.streaming else response.content
+
+        file_to_stream = getattr(response, 'file_to_stream', None)
+        if file_to_stream is not None:
+            file_to_stream.close()
+
+        return response, content
 
     def test_template_download(self):
-        response = self.client.get('/api/calculate/template/')
+        response, content = self.download('/api/calculate/template/')
+
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], XLSX_CONTENT_TYPE)
         self.assertIn('attachment', response['Content-Disposition'])
-        self.assertIn('shablon_zayavki.xlsx', response['Content-Disposition'])
-
-        content = b"".join(response.streaming_content)
+        self.assertIn('request_template.xlsx', response['Content-Disposition'])
         self.assertTrue(content.startswith(b'PK'))  # zip-контейнер xlsx
 
     def test_export_returns_xlsx(self):
-        response = self.client.get(f'/api/calculate/{self.calc_request.id}/export/')
+        response, content = self.download(f'/api/calculate/{self.calc_request.id}/export/')
+
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], XLSX_CONTENT_TYPE)
         self.assertIn(f'raskladka_{self.calc_request.id}.xlsx', response['Content-Disposition'])
-
-        workbook = load_workbook(BytesIO(b"".join(response.streaming_content)))
-        self.assertEqual(workbook.sheetnames, ["Сводка", "Раскладка"])
+        self.assertEqual(load_workbook(BytesIO(content)).sheetnames, ["Сводка", "Раскладка"])
 
     def test_export_unknown_request_returns_404(self):
-        response = self.client.get('/api/calculate/999999/export/')
+        response, _ = self.download('/api/calculate/999999/export/')
         self.assertEqual(response.status_code, 404)
         self.assertIn('error', response.json())
 
@@ -140,12 +181,127 @@ class ExportEndpointTests(ExportTestDataMixin, TestCase):
         self.calc_request.status = 'PROCESSING'
         self.calc_request.save()
 
-        response = self.client.get(f'/api/calculate/{self.calc_request.id}/export/')
+        response, _ = self.download(f'/api/calculate/{self.calc_request.id}/export/')
         self.assertEqual(response.status_code, 409)
         self.assertIn('error', response.json())
 
     def test_export_completed_without_results_returns_409(self):
         empty = CalculationRequest.objects.create(status='COMPLETED')
-        response = self.client.get(f'/api/calculate/{empty.id}/export/')
+        response, _ = self.download(f'/api/calculate/{empty.id}/export/')
         self.assertEqual(response.status_code, 409)
         self.assertIn('error', response.json())
+
+    def test_export_is_stored_and_reused(self):
+        url = f'/api/calculate/{self.calc_request.id}/export/'
+
+        self.download(url)
+        self.assertEqual(CalculationExport.objects.count(), 1)
+        export = CalculationExport.objects.get()
+        self.assertTrue(export.file.storage.exists(export.file.name))
+        first_name = export.file.name
+
+        # Повторное скачивание не плодит записи и отдаёт тот же файл
+        response, _ = self.download(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(CalculationExport.objects.count(), 1)
+        self.assertEqual(CalculationExport.objects.get().file.name, first_name)
+
+    def test_export_regenerated_if_file_missing(self):
+        url = f'/api/calculate/{self.calc_request.id}/export/'
+        self.download(url)
+
+        export = CalculationExport.objects.get()
+        export.file.storage.delete(export.file.name)  # имитируем чистку по ретеншену
+        self.assertFalse(export.file.storage.exists(export.file.name))
+
+        response, content = self.download(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(CalculationExport.objects.count(), 1)
+        self.assertEqual(load_workbook(BytesIO(content)).sheetnames, ["Сводка", "Раскладка"])
+
+    def test_export_download_name_is_stable(self):
+        response, _ = self.download(f'/api/calculate/{self.calc_request.id}/export/')
+        self.assertIn(f'raskladka_{self.calc_request.id}.xlsx', response['Content-Disposition'])
+
+    def test_deleting_request_removes_export_file(self):
+        self.download(f'/api/calculate/{self.calc_request.id}/export/')
+        export = CalculationExport.objects.get()
+        storage, name = export.file.storage, export.file.name
+
+        self.calc_request.delete()
+
+        self.assertEqual(CalculationExport.objects.count(), 0)
+        self.assertFalse(storage.exists(name))
+
+
+class SourceFileNameTests(TempMediaMixin, TestCase):
+    """Кириллица в имени исходного файла не должна доезжать до фронта в percent-энкоде."""
+
+    def test_serializer_returns_readable_name(self):
+        calc_request = CalculationRequest.objects.create(status='COMPLETED')
+        calc_request.source_file.save("Заявка №5.xlsx", ContentFile(b"x"), save=True)
+
+        data = CalculationRequestListSerializer(calc_request).data
+
+        self.assertNotIn('%D0', data['source_file_name'])
+        self.assertTrue(data['source_file_name'].startswith("Заявка"))
+        self.assertTrue(data['source_file_name'].endswith(".xlsx"))
+        # А в source_file (URL) энкод как раз ожидаем — поле оставлено для совместимости
+        self.assertIn('%D0', data['source_file'])
+
+    def test_serializer_returns_none_for_manual_request(self):
+        calc_request = CalculationRequest.objects.create(status='COMPLETED')
+        self.assertIsNone(CalculationRequestListSerializer(calc_request).data['source_file_name'])
+
+
+class CleanupOldFilesTests(TempMediaMixin, ExportTestDataMixin, TestCase):
+
+    def _aged_request(self, days: int, filename: str = "старая_заявка.xlsx") -> CalculationRequest:
+        calc_request = CalculationRequest.objects.create(status='COMPLETED')
+        calc_request.source_file.save(filename, ContentFile(b"x"), save=True)
+        CalculationRequest.objects.filter(pk=calc_request.pk).update(
+            created_at=timezone.now() - timedelta(days=days)
+        )
+        return calc_request
+
+    def test_removes_old_source_files_but_keeps_db_value(self):
+        old = self._aged_request(days=40)
+        name = old.source_file.name
+        storage = old.source_file.storage
+
+        result = cleanup_old_files(retention_days=30)
+
+        self.assertEqual(result['sources_removed'], 1)
+        self.assertFalse(storage.exists(name))
+        # Имя в БД сохраняется — иначе история потеряет колонку «Источник»
+        old.refresh_from_db()
+        self.assertEqual(old.source_file.name, name)
+
+    def test_keeps_fresh_source_files(self):
+        fresh = self._aged_request(days=1, filename="свежая_заявка.xlsx")
+
+        result = cleanup_old_files(retention_days=30)
+
+        self.assertEqual(result['sources_removed'], 0)
+        self.assertTrue(fresh.source_file.storage.exists(fresh.source_file.name))
+
+    def test_removes_old_exports_with_files(self):
+        export = ExportFileService(self.calc_request).get_or_create()
+        storage, name = export.file.storage, export.file.name
+        CalculationExport.objects.filter(pk=export.pk).update(
+            created_at=timezone.now() - timedelta(days=40)
+        )
+
+        result = cleanup_old_files(retention_days=30)
+
+        self.assertEqual(result['exports_removed'], 1)
+        self.assertEqual(CalculationExport.objects.count(), 0)
+        self.assertFalse(storage.exists(name))
+
+    def test_keeps_fresh_exports(self):
+        ExportFileService(self.calc_request).get_or_create()
+
+        result = cleanup_old_files(retention_days=30)
+
+        self.assertEqual(result['exports_removed'], 0)
+        self.assertEqual(CalculationExport.objects.count(), 1)

@@ -26,9 +26,18 @@ function parts(iso: string) {
 }
 
 function sourceLabel(entry: CalculationRequestList) {
+  // Бэк отдаёт готовое имя файла; source_file — это URL, в котором кириллица
+  // percent-энкодится (%D0%9A...), поэтому его декодируем как запасной вариант.
+  if (entry.source_file_name) return entry.source_file_name;
   if (!entry.source_file) return "Ручной ввод";
+
   const name = entry.source_file.split(/[\\/]/).pop();
-  return name || "Файл";
+  if (!name) return "Файл";
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
 }
 
 export function HistoryPage() {

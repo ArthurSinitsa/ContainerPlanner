@@ -3,17 +3,17 @@
 
 Публичный API модуля:
     * :class:`PackingExcelExporter` — построение книги для одной заявки;
+    * :class:`ExportFileService`    — сохранённый на диске файл (ленивая генерация);
     * :class:`PackingExportError`   — экспортировать нечего (нет результатов).
 
 Пример использования::
 
-    exporter = PackingExcelExporter(calc_request)
-    stream = exporter.build()      # BytesIO с готовой книгой
-    name = exporter.filename       # 'raskladka_29.xlsx'
+    export = ExportFileService(calc_request).get_or_create()   # CalculationExport
+    response = FileResponse(export.file.open('rb'), ...)
 
 Данные берутся из сохранённых `PackingResult`, а не из «сырого» результата
 PackingService.calculate(): расчёт выполняется в Celery-воркере, а отдаёт файл
-web-процесс — общей файловой системы у них может не быть.
+web-процесс.
 
 Всё, что не перечислено выше, — детали реализации (префикс ``_``).
 """
@@ -22,12 +22,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from io import BytesIO
 
+from django.core.files.base import ContentFile
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from logistics.models import CalculationRequest, PackingResult, Product
+from logistics.models import CalculationExport, CalculationRequest, PackingResult, Product
 
 
 class PackingExportError(Exception):
@@ -343,3 +344,49 @@ class PackingExcelExporter:
     def _apply_widths(sheet: Worksheet, columns: tuple[tuple[str, int], ...]) -> None:
         for index, (_, width) in enumerate(columns, start=1):
             sheet.column_dimensions[get_column_letter(index)].width = width
+
+
+class ExportFileService:
+    """
+    Отдаёт сохранённый на диске файл раскладки, генерируя его при первом обращении.
+
+    Результаты упаковки после статуса COMPLETED не меняются, поэтому один раз
+    собранную книгу можно переиспользовать. Если файл с диска пропал (например,
+    его удалила периодическая чистка по ретеншену) — он собирается заново.
+    """
+
+    def __init__(self, calc_request: CalculationRequest) -> None:
+        self._request = calc_request
+        self._exporter = PackingExcelExporter(calc_request)
+
+    @property
+    def filename(self) -> str:
+        """Имя, под которым файл отдаётся пользователю (не зависит от имени на диске)."""
+        return self._exporter.filename
+
+    def get_or_create(self) -> CalculationExport:
+        """
+        :raises PackingExportError: если у заявки нет рассчитанных контейнеров.
+        """
+        existing = self._existing()
+        return existing if existing is not None else self._create()
+
+    def _existing(self) -> CalculationExport | None:
+        export = CalculationExport.objects.filter(calculation_request=self._request).first()
+        if export is None or not export.file:
+            return None
+        # Строка в БД ещё не гарантирует наличие файла на диске
+        if not export.file.storage.exists(export.file.name):
+            return None
+        return export
+
+    def _create(self) -> CalculationExport:
+        content = ContentFile(self._exporter.build().getvalue(), name=self.filename)
+
+        export, _ = CalculationExport.objects.get_or_create(calculation_request=self._request)
+        # save() присвоит новое имя на диске; прежний «висячий» файл убираем вручную
+        old_name = export.file.name if export.file else None
+        export.file.save(self.filename, content, save=True)
+        if old_name and old_name != export.file.name:
+            export.file.storage.delete(old_name)
+        return export

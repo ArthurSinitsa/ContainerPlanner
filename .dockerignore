@@ -3,3 +3,5 @@
 .env
 __pycache__
 *.sqlite3
+media
+requests_xls

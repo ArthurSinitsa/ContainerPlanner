@@ -55,7 +55,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileUploadErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Заявка не найдена
   /api/calculate/{id}/export/:
     get:
@@ -90,13 +90,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExportNotFoundResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Заявка не найдена
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExportNotReadyResponse'
+                $ref: '#/components/schemas/ErrorResponse'
               examples:
                 РасчётЕщёНеЗавершён:
                   value:
@@ -132,7 +132,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileUploadErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Заявка не найдена
   /api/calculate/manual/:
     post:
@@ -163,7 +163,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileUploadSuccessResponse'
+                $ref: '#/components/schemas/CalculationAccepted'
               examples:
                 УспешныйСтартРасчета:
                   value:
@@ -177,7 +177,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileUploadErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
               examples:
                 ОшибкаВалидацииДанныхЛибоНеверноУказанКонтейнер:
                   value:
@@ -209,7 +209,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TemplateUnavailableResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Файл шаблона отсутствует на сервере
   /api/calculate/upload_file/:
     post:
@@ -240,7 +240,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileUploadSuccessResponse'
+                $ref: '#/components/schemas/CalculationAccepted'
               examples:
                 УспешныйСтартРасчета:
                   value:
@@ -254,7 +254,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileUploadErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
               examples:
                 ОшибкаВалидации/обработкиФайлаЛибоНеверноУказанКонтейнер:
                   value:
@@ -709,6 +709,28 @@ paths:
           description: ''
 components:
   schemas:
+    CalculationAccepted:
+      type: object
+      description: 'Ответ на создание заявки: расчёт принят и выполняется в фоне'
+      properties:
+        message:
+          type: string
+          description: Человекочитаемое подтверждение
+        request_id:
+          type: integer
+          description: ID созданной заявки
+        task_id:
+          type: string
+          format: uuid
+          description: ID задачи в Celery
+        status_url:
+          type: string
+          description: URL для опроса статуса расчёта
+      required:
+      - message
+      - request_id
+      - status_url
+      - task_id
     CalculationFileUpload:
       type: object
       description: Сериализатор для загрузки файла с заказом (.xlsx или .csv)
@@ -767,6 +789,10 @@ components:
           format: uri
           nullable: true
           title: Исходный файл заказа
+        source_file_name:
+          type: string
+          nullable: true
+          readOnly: true
         items:
           type: array
           items:
@@ -782,6 +808,7 @@ components:
       - id
       - items
       - results
+      - source_file_name
     CalculationRequestList:
       type: object
       description: Краткий сериализатор для списка заявок (без тяжелой 3D-геометрии)
@@ -807,9 +834,14 @@ components:
           format: uri
           nullable: true
           title: Исходный файл заказа
+        source_file_name:
+          type: string
+          nullable: true
+          readOnly: true
       required:
       - created_at
       - id
+      - source_file_name
     CalculationStatusResponse:
       type: object
       description: Сериализатор для документации ответа эндпоинта status
@@ -847,27 +879,23 @@ components:
           maxLength: 50
         length_mm:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Длина (мм)
         width_mm:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Ширина (мм)
         height_mm:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Высота (мм)
         max_weight_kg:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Макс. вес (кг)
         volume_m3:
           type: number
@@ -900,18 +928,13 @@ components:
       - height
       - length
       - width
-    ExportNotFoundResponse:
+    ErrorResponse:
       type: object
+      description: 'Единый формат ошибки во всех эндпоинтах: {"error": "..."}'
       properties:
         error:
           type: string
-      required:
-      - error
-    ExportNotReadyResponse:
-      type: object
-      properties:
-        error:
-          type: string
+          description: Описание ошибки
       required:
       - error
     FileUpload:
@@ -927,30 +950,6 @@ components:
           description: Excel файл с товарами (.xlsx)
       required:
       - file
-    FileUploadErrorResponse:
-      type: object
-      properties:
-        error:
-          type: string
-      required:
-      - error
-    FileUploadSuccessResponse:
-      type: object
-      properties:
-        message:
-          type: string
-        request_id:
-          type: integer
-        task_id:
-          type: string
-          format: uuid
-        status_url:
-          type: string
-      required:
-      - message
-      - request_id
-      - status_url
-      - task_id
     PackedItemLayout:
       type: object
       properties:
@@ -1002,9 +1001,8 @@ components:
             $ref: '#/components/schemas/PackedItemLayout'
         container_number:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         total_weight_kg:
           type: number
           format: double
@@ -1048,27 +1046,23 @@ components:
           maxLength: 50
         length_mm:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Длина (мм)
         width_mm:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Ширина (мм)
         height_mm:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Высота (мм)
         max_weight_kg:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Макс. вес (кг)
         volume_m3:
           type: number
@@ -1083,9 +1077,8 @@ components:
           readOnly: true
         product_id:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          maximum: 2147483647
+          minimum: -2147483648
           title: ID
         sku:
           type: string
@@ -1142,9 +1135,8 @@ components:
           title: Height Masterbox (mm)
         qty_of_masterbox:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Qty of master box
         masterbox_weight_kg:
           type: number
@@ -1168,9 +1160,8 @@ components:
           title: Height Pallet (mm)
         qty_of_pallet:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         pallet_weight_kg:
           type: number
           format: double
@@ -1247,9 +1238,8 @@ components:
           readOnly: true
         product_id:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          maximum: 2147483647
+          minimum: -2147483648
           title: ID
         sku:
           type: string
@@ -1306,9 +1296,8 @@ components:
           title: Height Masterbox (mm)
         qty_of_masterbox:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
           title: Qty of master box
         masterbox_weight_kg:
           type: number
@@ -1332,9 +1321,8 @@ components:
           title: Height Pallet (mm)
         qty_of_pallet:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         pallet_weight_kg:
           type: number
           format: double
@@ -1394,9 +1382,8 @@ components:
           type: integer
         quantity:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 1
-          format: int64
           title: Количество
       required:
       - product_id
@@ -1430,13 +1417,6 @@ components:
       - message
       - status
       - updated
-    TemplateUnavailableResponse:
-      type: object
-      properties:
-        error:
-          type: string
-      required:
-      - error
   securitySchemes:
     basicAuth:
       type: http

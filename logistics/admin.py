@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ContainerType, Product, CalculationRequest, RequestItem, PackingResult
+from .models import ContainerType, Product, CalculationRequest, RequestItem, PackingResult, CalculationExport
 
 
 @admin.register(ContainerType)
@@ -83,6 +83,12 @@ class CalculationRequestAdmin(admin.ModelAdmin):
         return obj.items.count()
 
     items_count.short_description = "Кол-во позиций"
+
+
+@admin.register(CalculationExport)
+class CalculationExportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'calculation_request', 'file', 'created_at')
+    readonly_fields = ('created_at',)
 
 
 @admin.register(PackingResult)

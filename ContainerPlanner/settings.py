@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+from celery.schedules import crontab
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -135,6 +137,15 @@ CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Периодические задачи (запускаются сервисом celery-beat)
+CELERY_BEAT_SCHEDULE = {
+    'cleanup-old-files': {
+        'task': 'logistics.tasks.cleanup_old_files',
+        'schedule': crontab(hour=3, minute=30),
+    },
+}
 
 
 # Password validation
@@ -172,3 +183,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Загруженные файлы: исходники заявок (requests_xls/) и раскладки (exports/).
+# В docker-compose сюда смонтирован именованный volume media_data, общий для api и celery.
+# Наружу через nginx НЕ публикуется: раскладки отдаются только через API-эндпоинт.
+MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = '/media/'
+
+# Через сколько дней периодическая задача удаляет файлы заявок и раскладок
+FILE_RETENTION_DAYS = int(os.environ.get('FILE_RETENTION_DAYS', 30))

@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.db.models import (JSONField, CharField, PositiveIntegerField, BigIntegerField, IntegerField, FloatField,
-                              BooleanField, DateTimeField, FileField, TextField, ForeignKey)
+                              BooleanField, DateTimeField, FileField, TextField, ForeignKey, OneToOneField)
 
 
 class ContainerType(models.Model):
@@ -112,6 +112,29 @@ class RequestItem(models.Model):
 
     def __str__(self):
         return f"{self.product.sku} - {self.quantity} шт."
+
+
+class CalculationExport(models.Model):
+    """
+    Сгенерированный .xlsx с раскладкой по контейнерам, привязанный к заявке.
+
+    Файл создаётся лениво — при первом обращении к /api/calculate/{id}/export/ —
+    и переиспользуется при последующих скачиваниях. Периодическая задача
+    cleanup_old_files удаляет старые файлы; если файла на диске уже нет,
+    он будет сгенерирован заново.
+    """
+    calculation_request: OneToOneField = OneToOneField(
+        CalculationRequest, related_name='export', on_delete=models.CASCADE, verbose_name="Заявка"
+    )
+    file: FileField = FileField(upload_to='exports/', verbose_name="Файл раскладки")
+    created_at: DateTimeField = DateTimeField(auto_now_add=True, verbose_name="Дата генерации")
+
+    def __str__(self):
+        return f"Раскладка заявки #{self.calculation_request_id}"
+
+    class Meta:
+        verbose_name = "Файл раскладки"
+        verbose_name_plural = "Файлы раскладок"
 
 
 class PackingResult(models.Model):

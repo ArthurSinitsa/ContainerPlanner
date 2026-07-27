@@ -1,5 +1,20 @@
+import os
+
 from rest_framework import serializers
 from .models import Product, ContainerType, PackingResult, RequestItem, CalculationRequest
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    """Единый формат ошибки во всех эндпоинтах: {"error": "..."}"""
+    error = serializers.CharField(help_text="Описание ошибки")
+
+
+class CalculationAcceptedSerializer(serializers.Serializer):
+    """Ответ на создание заявки: расчёт принят и выполняется в фоне"""
+    message = serializers.CharField(help_text="Человекочитаемое подтверждение")
+    request_id = serializers.IntegerField(help_text="ID созданной заявки")
+    task_id = serializers.UUIDField(help_text="ID задачи в Celery")
+    status_url = serializers.CharField(help_text="URL для опроса статуса расчёта")
 
 
 class PositionSerializer(serializers.Serializer):
@@ -86,22 +101,39 @@ class PackingResultSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class CalculationRequestListSerializer(serializers.ModelSerializer):
+class SourceFileNameMixin(serializers.Serializer):
+    """
+    Добавляет читаемое имя исходного файла заявки.
+
+    Поле source_file DRF отдаёт как URL, а FileSystemStorage.url() прогоняет имя
+    через filepath_to_uri() — кириллица превращается в %D0%9A%D0... Поэтому имя
+    для отображения берём напрямую из значения в БД.
+    """
+    source_file_name = serializers.SerializerMethodField()
+
+    def get_source_file_name(self, obj) -> str | None:
+        if not obj.source_file:
+            return None
+        return os.path.basename(obj.source_file.name)
+
+
+class CalculationRequestListSerializer(SourceFileNameMixin, serializers.ModelSerializer):
     """Краткий сериализатор для списка заявок (без тяжелой 3D-геометрии)"""
 
     class Meta:
         model = CalculationRequest
-        fields = ['id', 'created_at', 'status', 'description', 'source_file', ]
+        fields = ['id', 'created_at', 'status', 'description', 'source_file', 'source_file_name']
 
 
-class CalculationRequestDetailSerializer(serializers.ModelSerializer):
+class CalculationRequestDetailSerializer(SourceFileNameMixin, serializers.ModelSerializer):
     """Детальный сериализатор, включающий товары и готовую расстановку в контейнерах"""
     items = RequestItemSerializer(many=True, read_only=True)
     results = PackingResultSerializer(many=True, read_only=True)
 
     class Meta:
         model = CalculationRequest
-        fields = ['id', 'created_at', 'status', 'description', 'source_file', 'items', 'results']
+        fields = ['id', 'created_at', 'status', 'description', 'source_file', 'source_file_name',
+                  'items', 'results']
 
 
 class CalculationStatusResponseSerializer(serializers.Serializer):
