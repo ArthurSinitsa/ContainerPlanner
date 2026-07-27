@@ -124,6 +124,14 @@ export function ChevronRightIcon(props: IconProps) {
   );
 }
 
+export function BurgerIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </Svg>
+  );
+}
+
 export function ClipboardIcon(props: IconProps) {
   return (
     <Svg strokeWidth={1.8} {...props}>

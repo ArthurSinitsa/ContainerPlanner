@@ -10,6 +10,8 @@ import type { CalculationRequestList } from "../lib/types";
 
 const PAGE_SIZE = 10;
 const COLS = "36px minmax(0,1fr) 220px 150px 24px";
+// Минимум под все колонки: на узком экране таблица скроллится вбок, а не сжимается
+const TABLE_MIN_WIDTH = 620;
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -128,45 +130,49 @@ export function HistoryPage() {
       </div>
 
       <article className="card" data-glow style={{ padding: "12px 12px 8px", animationDelay: "0.12s" }}>
-        <div className="gtHead" style={{ gridTemplateColumns: COLS, gap: 14 }}>
-          <span />
-          <span>Заявка</span>
-          <span>Источник</span>
-          <span>Дата</span>
-          <span />
-        </div>
+        <div className="tableScroll">
+          <div style={{ minWidth: TABLE_MIN_WIDTH }}>
+            <div className="gtHead" style={{ gridTemplateColumns: COLS, gap: 14 }}>
+              <span />
+              <span>Заявка</span>
+              <span>Источник</span>
+              <span>Дата</span>
+              <span />
+            </div>
 
-        {calculationsQuery.isLoading ? (
-          <div className="emptyPanel">Загрузка...</div>
-        ) : pageEntries.length === 0 ? (
-          <div className="emptyPanel">
-            {entries.length === 0 ? "Пока нет расчётов." : "По заданным фильтрам ничего не найдено."}
+            {calculationsQuery.isLoading ? (
+              <div className="emptyPanel">Загрузка...</div>
+            ) : pageEntries.length === 0 ? (
+              <div className="emptyPanel">
+                {entries.length === 0 ? "Пока нет расчётов." : "По заданным фильтрам ничего не найдено."}
+              </div>
+            ) : (
+              pageEntries.map((entry) => {
+                const t = parts(entry.created_at);
+                return (
+                  <Link key={entry.id} to={`/calculations/${entry.id}`} className="gtRow" style={{ gridTemplateColumns: COLS, gap: 14 }}>
+                    <span style={{ display: "flex" }}>
+                      <StatusMarker status={entry.status} />
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="cellName">{entry.description || `Заявка #${entry.id}`}</span>
+                      <span className="cellSub">#{entry.id}</span>
+                    </span>
+                    <span className="cellMono">{sourceLabel(entry)}</span>
+                    <span>
+                      <span className="cellDate">{t.date}</span>
+                      <br />
+                      <span className="cellTime">{t.time}</span>
+                    </span>
+                    <span className="rowChevron">
+                      <ChevronRightIcon size={16} />
+                    </span>
+                  </Link>
+                );
+              })
+            )}
           </div>
-        ) : (
-          pageEntries.map((entry) => {
-            const t = parts(entry.created_at);
-            return (
-              <Link key={entry.id} to={`/calculations/${entry.id}`} className="gtRow" style={{ gridTemplateColumns: COLS, gap: 14 }}>
-                <span style={{ display: "flex" }}>
-                  <StatusMarker status={entry.status} />
-                </span>
-                <span style={{ minWidth: 0 }}>
-                  <span className="cellName">{entry.description || `Заявка #${entry.id}`}</span>
-                  <span className="cellSub">#{entry.id}</span>
-                </span>
-                <span className="cellMono">{sourceLabel(entry)}</span>
-                <span>
-                  <span className="cellDate">{t.date}</span>
-                  <br />
-                  <span className="cellTime">{t.time}</span>
-                </span>
-                <span className="rowChevron">
-                  <ChevronRightIcon size={16} />
-                </span>
-              </Link>
-            );
-          })
-        )}
+        </div>
 
         <Pagination page={safePage} totalPages={totalPages} onPage={setPage} />
       </article>

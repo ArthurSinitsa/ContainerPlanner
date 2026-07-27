@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
 import { AppFrame } from "../components/app-frame";
-import { HeroFrame } from "../components/icons";
+import { HeroBox } from "../components/hero-box";
 import { CalculationHistoryList } from "../features/calculations/history-list";
 import { ManualCalculationForm } from "../features/calculations/manual-form";
 import { UploadCalculationForm } from "../features/calculations/upload-form";
@@ -27,6 +27,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [activeForm, setActiveForm] = useState<"upload" | "manual">("upload");
   const [containerTypeId, setContainerTypeId] = useState(0);
+  const [description, setDescription] = useState("");
 
   const containersQuery = useQuery({ queryKey: ["containers"], queryFn: api.getContainers });
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: api.getProducts });
@@ -79,6 +80,8 @@ export function DashboardPage() {
   const products = productsQuery.data;
   const calculations = calculationsQuery.data;
   const recent = calculations.slice(0, HISTORY_PREVIEW);
+  // Пустое описание не отправляем — бэк подставит своё («Из файла …») либо оставит пустым
+  const trimmedDescription = description.trim() || undefined;
 
   return (
     <AppFrame>
@@ -93,7 +96,7 @@ export function DashboardPage() {
             <div className="heroStats">
               <div>
                 <div className="heroStatValue">{containers.length}</div>
-                <div className="heroStatLabel">ТИПА КОНТЕЙНЕРОВ</div>
+                <div className="heroStatLabel">ТИПОВ КОНТЕЙНЕРОВ</div>
               </div>
               <div className="heroStatDivider" />
               <div>
@@ -107,7 +110,7 @@ export function DashboardPage() {
               </div>
             </div>
           </div>
-          <HeroFrame className="floatFrame" />
+          <HeroBox />
         </div>
       </section>
 
@@ -145,6 +148,15 @@ export function DashboardPage() {
             </select>
           </div>
 
+          <div className="field" style={{ marginBottom: 20 }}>
+            <span className="monoLabel">Описание</span>
+            <input
+              value={description}
+              placeholder="напр. Экспорт RU→KZ, паллеты"
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
           <AnimatePresence mode="wait" initial={false}>
             {activeForm === "upload" ? (
               <motion.div
@@ -158,7 +170,7 @@ export function DashboardPage() {
                   containerTypeId={containerTypeId}
                   isSubmitting={uploadMutation.isPending}
                   onSubmit={async (payload) => {
-                    await uploadMutation.mutateAsync(payload);
+                    await uploadMutation.mutateAsync({ ...payload, description: trimmedDescription });
                   }}
                 />
               </motion.div>
@@ -175,7 +187,7 @@ export function DashboardPage() {
                   products={products}
                   isSubmitting={manualMutation.isPending}
                   onSubmit={async (payload) => {
-                    await manualMutation.mutateAsync(payload);
+                    await manualMutation.mutateAsync({ ...payload, description: trimmedDescription });
                   }}
                 />
               </motion.div>

@@ -2,11 +2,14 @@ import shutil
 import tempfile
 from datetime import timedelta
 from io import BytesIO
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.utils import timezone
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from .models import CalculationExport, CalculationRequest, ContainerType, PackingResult, Product
 from .serializers import CalculationRequestListSerializer
@@ -252,6 +255,83 @@ class SourceFileNameTests(TempMediaMixin, TestCase):
     def test_serializer_returns_none_for_manual_request(self):
         calc_request = CalculationRequest.objects.create(status='COMPLETED')
         self.assertIsNone(CalculationRequestListSerializer(calc_request).data['source_file_name'])
+
+
+class CalculationDescriptionTests(TempMediaMixin, TestCase):
+    """Описание заявки приходит с фронта и должно доезжать до БД обоими путями."""
+
+    def setUp(self):
+        self.container_type = ContainerType.objects.create(
+            name="40HQ", length_mm=12000, width_mm=2350, height_mm=2690,
+            max_weight_kg=26000, volume_m3=76.0,
+        )
+        Product.objects.create(product_id=1024, sku="TV-55", name="Телевизор 55")
+
+    @staticmethod
+    def _order_file() -> SimpleUploadedFile:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(["ID", "Qty"])
+        sheet.append([1024, 5])
+        stream = BytesIO()
+        workbook.save(stream)
+        return SimpleUploadedFile(
+            "order.xlsx", stream.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    @patch('logistics.views.run_packing_task.delay')
+    def test_manual_request_keeps_description(self, delay_mock):
+        delay_mock.return_value = SimpleNamespace(id='00000000-0000-0000-0000-000000000000')
+
+        response = self.client.post(
+            '/api/calculate/manual/',
+            data={
+                "container_type_id": self.container_type.id,
+                "description": "Экспорт RU→KZ, паллеты",
+                "items": [{"product_id": 1024, "quantity": 5}],
+            },
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 202)
+        calc_request = CalculationRequest.objects.get(pk=response.json()['request_id'])
+        self.assertEqual(calc_request.description, "Экспорт RU→KZ, паллеты")
+        # И возвращается фронту в списке заявок
+        self.assertEqual(
+            CalculationRequestListSerializer(calc_request).data['description'],
+            "Экспорт RU→KZ, паллеты"
+        )
+
+    @patch('logistics.views.run_packing_task.delay')
+    def test_upload_request_keeps_description(self, delay_mock):
+        delay_mock.return_value = SimpleNamespace(id='00000000-0000-0000-0000-000000000000')
+
+        response = self.client.post(
+            '/api/calculate/upload_file/',
+            data={
+                "container_type_id": self.container_type.id,
+                "description": "Ноябрьская отгрузка",
+                "file": self._order_file(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 202)
+        calc_request = CalculationRequest.objects.get(pk=response.json()['request_id'])
+        self.assertEqual(calc_request.description, "Ноябрьская отгрузка")
+
+    @patch('logistics.views.run_packing_task.delay')
+    def test_upload_without_description_falls_back_to_file_name(self, delay_mock):
+        delay_mock.return_value = SimpleNamespace(id='00000000-0000-0000-0000-000000000000')
+
+        response = self.client.post(
+            '/api/calculate/upload_file/',
+            data={"container_type_id": self.container_type.id, "file": self._order_file()},
+        )
+
+        self.assertEqual(response.status_code, 202)
+        calc_request = CalculationRequest.objects.get(pk=response.json()['request_id'])
+        self.assertIn("order.xlsx", calc_request.description)
 
 
 class CleanupOldFilesTests(TempMediaMixin, ExportTestDataMixin, TestCase):

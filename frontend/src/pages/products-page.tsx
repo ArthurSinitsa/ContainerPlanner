@@ -13,6 +13,8 @@ type ProductModalMode = "add" | "edit";
 
 const PAGE_SIZE = 12;
 const COLS = "80px 1fr 120px 120px 120px 72px 82px";
+// Минимум под все колонки: на узком экране таблица скроллится вбок, а не сжимается
+const TABLE_MIN_WIDTH = 760;
 
 type ProductFormState = {
   product_id: string;
@@ -321,46 +323,50 @@ export function ProductsPage() {
       </div>
 
       <article className="card" data-glow style={{ padding: "12px 12px 8px", animationDelay: "0.12s" }}>
-        <div className="gtHead" style={{ gridTemplateColumns: COLS }}>
-          <span>ID</span>
-          <span>Название</span>
-          <span>SKU</span>
-          <span>Категория</span>
-          <span>EAN</span>
-          <span>Battery</span>
-          <span />
-        </div>
-
-        {productsQuery.isLoading ? (
-          <div className="emptyPanel">Загрузка товаров...</div>
-        ) : pageProducts.length === 0 ? (
-          <div className="emptyPanel">{search || category || battery ? "Ничего не найдено." : "База товаров пуста."}</div>
-        ) : (
-          pageProducts.map((p) => (
-            <div key={p.id} className="gtRow" style={{ gridTemplateColumns: COLS, cursor: "pointer" }} onClick={() => openEdit(p)}>
-              <span className="cellId">{p.product_id}</span>
-              <span className="cellName">{p.name ?? "—"}</span>
-              <span className="cellMono">{p.sku ?? "—"}</span>
-              <span style={{ fontSize: 13, color: "var(--text-mid)" }}>{p.category ?? "—"}</span>
-              <span className="cellMono">{p.ean ?? "—"}</span>
-              <span>
-                {p.battery_flag ? <span className="batPill">● BAT</span> : <span className="dash">—</span>}
-              </span>
-              <span style={{ textAlign: "right" }}>
-                <button
-                  className="rowDelete"
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmDelete(p);
-                  }}
-                >
-                  Удалить
-                </button>
-              </span>
+        <div className="tableScroll">
+          <div style={{ minWidth: TABLE_MIN_WIDTH }}>
+            <div className="gtHead" style={{ gridTemplateColumns: COLS }}>
+              <span>ID</span>
+              <span>Название</span>
+              <span>SKU</span>
+              <span>Категория</span>
+              <span>EAN</span>
+              <span>Battery</span>
+              <span />
             </div>
-          ))
-        )}
+
+            {productsQuery.isLoading ? (
+              <div className="emptyPanel">Загрузка товаров...</div>
+            ) : pageProducts.length === 0 ? (
+              <div className="emptyPanel">{search || category || battery ? "Ничего не найдено." : "База товаров пуста."}</div>
+            ) : (
+              pageProducts.map((p) => (
+                <div key={p.id} className="gtRow" style={{ gridTemplateColumns: COLS, cursor: "pointer" }} onClick={() => openEdit(p)}>
+                  <span className="cellId">{p.product_id}</span>
+                  <span className="cellName">{p.name ?? "—"}</span>
+                  <span className="cellMono">{p.sku ?? "—"}</span>
+                  <span style={{ fontSize: 13, color: "var(--text-mid)" }}>{p.category ?? "—"}</span>
+                  <span className="cellMono">{p.ean ?? "—"}</span>
+                  <span>
+                    {p.battery_flag ? <span className="batPill">● BAT</span> : <span className="dash">—</span>}
+                  </span>
+                  <span style={{ textAlign: "right" }}>
+                    <button
+                      className="rowDelete"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDelete(p);
+                      }}
+                    >
+                      Удалить
+                    </button>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         <Pagination page={safePage} totalPages={totalPages} onPage={setPage} />
       </article>

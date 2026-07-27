@@ -10,6 +10,12 @@ import { api } from "../lib/api";
 import { extractApiErrorMessage } from "../lib/api-error";
 import type { CalculationRequestDetail, Product, StatusEnum } from "../lib/types";
 
+// Минимумы под колонки: на узком экране таблицы скроллятся вбок, а не сжимаются
+const ITEMS_COLS = "90px 1fr 150px 90px";
+const ITEMS_TABLE_MIN_WIDTH = 560;
+const ALL_ITEMS_COLS = "90px 1fr 150px 90px 120px";
+const ALL_ITEMS_TABLE_MIN_WIDTH = 680;
+
 function StatusPill({ status }: { status: string }) {
   const s = status.toUpperCase();
   if (s === "COMPLETED") {
@@ -280,20 +286,24 @@ export function CalculationPage() {
                 <span className="cardTitle">Товары в контейнере #{activeResult.container_number}</span>
                 <span className="monoLabel">{activeResult.products.length} позиций</span>
               </div>
-              <div className="gtHead" style={{ gridTemplateColumns: "90px 1fr 150px 90px" }}>
-                <span>ID</span>
-                <span>Название</span>
-                <span>SKU</span>
-                <span>Кол-во</span>
-              </div>
-              {activeResult.products.map((p) => (
-                <div key={p.product_id} className="gtRow" style={{ gridTemplateColumns: "90px 1fr 150px 90px" }}>
-                  <span className="cellId">{p.product_id}</span>
-                  <span className="cellName">{p.product_name || "—"}</span>
-                  <span className="cellMono">{productByProductId.get(p.product_id)?.sku ?? "—"}</span>
-                  <span className="cellQty">{p.quantity}</span>
+              <div className="tableScroll">
+                <div style={{ minWidth: ITEMS_TABLE_MIN_WIDTH }}>
+                  <div className="gtHead" style={{ gridTemplateColumns: ITEMS_COLS }}>
+                    <span>ID</span>
+                    <span>Название</span>
+                    <span>SKU</span>
+                    <span>Кол-во</span>
+                  </div>
+                  {activeResult.products.map((p) => (
+                    <div key={p.product_id} className="gtRow" style={{ gridTemplateColumns: ITEMS_COLS }}>
+                      <span className="cellId">{p.product_id}</span>
+                      <span className="cellName">{p.product_name || "—"}</span>
+                      <span className="cellMono">{productByProductId.get(p.product_id)?.sku ?? "—"}</span>
+                      <span className="cellQty">{p.quantity}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </article>
           ) : null}
 
@@ -303,26 +313,30 @@ export function CalculationPage() {
                 <span className="cardTitle">Все товары в заявке</span>
                 <span className="monoLabel">{detailsQuery.data.items.length} позиций</span>
               </div>
-              <div className="gtHead" style={{ gridTemplateColumns: "90px 1fr 150px 90px 120px" }}>
-                <span>ID</span>
-                <span>Название</span>
-                <span>SKU</span>
-                <span>Кол-во</span>
-                <span>Контейнер</span>
-              </div>
-              {detailsQuery.data.items.map((it) => {
-                const p = productByProductId.get(it.product_id);
-                const contNo = containerByProduct.get(it.product_id);
-                return (
-                  <div key={it.product_id} className="gtRow" style={{ gridTemplateColumns: "90px 1fr 150px 90px 120px" }}>
-                    <span className="cellId">{it.product_id}</span>
-                    <span className="cellName">{p?.name ?? "—"}</span>
-                    <span className="cellMono">{p?.sku ?? "—"}</span>
-                    <span className="cellQty">{it.quantity}</span>
-                    <span className="cellMono">{contNo != null ? `Конт. #${contNo}` : "—"}</span>
+              <div className="tableScroll">
+                <div style={{ minWidth: ALL_ITEMS_TABLE_MIN_WIDTH }}>
+                  <div className="gtHead" style={{ gridTemplateColumns: ALL_ITEMS_COLS }}>
+                    <span>ID</span>
+                    <span>Название</span>
+                    <span>SKU</span>
+                    <span>Кол-во</span>
+                    <span>Контейнер</span>
                   </div>
-                );
-              })}
+                  {detailsQuery.data.items.map((it) => {
+                    const p = productByProductId.get(it.product_id);
+                    const contNo = containerByProduct.get(it.product_id);
+                    return (
+                      <div key={it.product_id} className="gtRow" style={{ gridTemplateColumns: ALL_ITEMS_COLS }}>
+                        <span className="cellId">{it.product_id}</span>
+                        <span className="cellName">{p?.name ?? "—"}</span>
+                        <span className="cellMono">{p?.sku ?? "—"}</span>
+                        <span className="cellQty">{it.quantity}</span>
+                        <span className="cellMono">{contNo != null ? `Конт. #${contNo}` : "—"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </article>
           ) : null}
         </>

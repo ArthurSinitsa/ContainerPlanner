@@ -198,6 +198,62 @@ a {
   color: var(--text-hi);
   background: rgba(255, 255, 255, 0.04);
 }
+/* Бургер и выпадающее меню — показываются только на узком экране (см. Responsive) */
+.burgerBtn {
+  display: none;
+  place-items: center;
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-hi);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.burgerBtn:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.06);
+}
+.navMenuOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+}
+.navMenu {
+  position: fixed;
+  top: 68px;
+  right: 20px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px;
+  min-width: 210px;
+  border-radius: 16px;
+  background: rgba(16, 17, 22, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.85);
+}
+.navMenuLink {
+  padding: 12px 14px;
+  border-radius: 11px;
+  font-size: 15px;
+  color: var(--text-mid);
+  transition: color 0.2s, background 0.2s;
+}
+.navMenuLink:hover {
+  color: var(--text-hi);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.navMenuLink.active {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
 .appNavLink.active {
   color: var(--accent);
   background: rgba(var(--accent-rgb), 0.12);
@@ -236,26 +292,30 @@ a {
   max-width: 500px;
   text-wrap: pretty;
 }
+/* Метрики ужимаются через clamp() и никогда не переносятся — на телефоне
+   три показателя должны оставаться в одну строку */
 .heroStats {
   display: flex;
-  gap: 34px;
+  gap: clamp(16px, 3vw, 34px);
   margin-top: 32px;
   font-family: var(--font-mono);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .heroStatValue {
-  font-size: 28px;
+  font-size: clamp(20px, 5vw, 28px);
   color: var(--text-hi);
 }
 .heroStatLabel {
-  font-size: 11px;
+  font-size: clamp(9px, 2.4vw, 11px);
   letter-spacing: 1px;
   color: var(--text-dim);
   margin-top: 4px;
+  white-space: nowrap;
 }
 .heroStatDivider {
   width: 1px;
   background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 .row {
@@ -1707,16 +1767,38 @@ a.gtRow {
   color: var(--text-dim);
 }
 
-.floatFrame {
+/* Интерактивный каркас контейнера в hero: перетаскивается, светится по кликам
+   и покачивается при наведении (логика — src/components/hero-box.tsx).
+   touch-action:none нужен, чтобы жест перетаскивания не уезжал в скролл страницы. */
+.heroBox {
   width: 260px;
   flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+  will-change: transform;
+  z-index: 5;
+}
+.heroBoxFloat {
   animation: float 7s ease-in-out infinite;
+}
+.heroBoxSvg {
+  width: 100%;
+  display: block;
   opacity: 0.9;
+}
+
+/* Широкие грид-таблицы прокручиваются вбок внутри своей карточки: у .appRoot
+   стоит overflow-x:clip, поэтому иначе правые колонки просто обрезались бы */
+.tableScroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ============================== Responsive ============================== */
 
-@media (max-width: 1080px) {
+/* Страница расчёта складывается раньше остальных: 3D-вьюер и панель контейнеров
+   рядом перестают помещаться уже на 900px */
+@media (max-width: 900px) {
   .calcGrid {
     grid-template-columns: 1fr;
   }
@@ -1729,7 +1811,13 @@ a.gtRow {
   }
 }
 
-@media (max-width: 920px) {
+@media (max-width: 820px) {
+  .appNav {
+    display: none;
+  }
+  .burgerBtn {
+    display: grid;
+  }
   .grid.composer {
     grid-template-columns: 1fr;
   }
@@ -1745,6 +1833,7 @@ a.gtRow {
   .heroHeadRow {
     flex-direction: column;
     align-items: flex-start;
+    gap: 26px;
   }
   .formGrid.c3,
   .formGrid.c2,
@@ -1754,9 +1843,6 @@ a.gtRow {
 }
 
 @media (max-width: 640px) {
-  .appNav {
-    display: none;
-  }
   .hero h1,
   .calcTitle {
     font-size: 26px;
