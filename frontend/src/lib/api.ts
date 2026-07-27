@@ -58,13 +58,14 @@ function filenameFromDisposition(header: string | null): string | null {
 
 /**
  * Скачивает файл-вложение с сервера (blob → браузерная загрузка).
- * Бросает исключение при не-2xx (напр. 404, если серверная выгрузка ещё не готова).
+ * При не-2xx бросает исключение с телом ответа — его разбирает extractApiErrorMessage.
  */
 async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const url = `${API_BASE_URL}${path}`;
   const response = await fetch(url, { credentials: "include" });
   if (!response.ok) {
-    throw new Error(`API ${response.status}: ${response.statusText}`);
+    const body = await response.text().catch(() => "");
+    throw new Error(`API ${response.status}: ${body || response.statusText}`);
   }
   const blob = await response.blob();
   const name = filenameFromDisposition(response.headers.get("Content-Disposition")) ?? fallbackName;
@@ -177,8 +178,7 @@ export const api = {
     return await response.json() as Promise<FileUploadSuccessResponse>;
   },
 
-  // Серверная генерация .xlsx (эндпоинты появятся на бэке позже):
-  // образец файла для заявки и готовая раскладка по контейнерам.
+  // Серверная генерация .xlsx: образец файла для заявки и раскладка по контейнерам.
   downloadRequestTemplate: () => downloadFile("/api/calculate/template/", "shablon_zayavki.xlsx"),
   downloadRequestExport: (id: number) =>
     downloadFile(`/api/calculate/${id}/export/`, `raskladka_${id}.xlsx`)

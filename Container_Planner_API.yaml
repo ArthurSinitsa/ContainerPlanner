@@ -57,6 +57,52 @@ paths:
               schema:
                 $ref: '#/components/schemas/FileUploadErrorResponse'
           description: Заявка не найдена
+  /api/calculate/{id}/export/:
+    get:
+      operationId: calculate_export_retrieve
+      description: 'Генерирует и отдаёт .xlsx с раскладкой товаров по контейнерам:
+        лист «Сводка» (метрики каждого контейнера) и лист «Раскладка» (ID, наименование,
+        SKU и количество товара в каждом контейнере). Доступно только для завершённых
+        заявок.'
+      summary: Скачать раскладку заявки (.xlsx)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Запрос на расчет.
+        required: true
+      tags:
+      - calculate
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportNotFoundResponse'
+          description: Заявка не найдена
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportNotReadyResponse'
+              examples:
+                РасчётЕщёНеЗавершён:
+                  value:
+                    error: 'Расчёт ещё не завершён (статус: Рассчитывается).'
+                  summary: Ошибка (409)
+          description: Расчёт ещё не завершён либо завершился без результатов
   /api/calculate/{id}/status/:
     get:
       operationId: calculate_status_retrieve
@@ -139,6 +185,32 @@ paths:
                   summary: Ошибка (400)
           description: Ошибка валидации данных, обработки файла либо не найден контейнер/товар
             в базе
+  /api/calculate/template/:
+    get:
+      operationId: calculate_template_retrieve
+      description: Отдаёт образец файла, по формату которого нужно готовить заявку
+        для загрузки.
+      summary: Скачать шаблон заявки (.xlsx)
+      tags:
+      - calculate
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateUnavailableResponse'
+          description: Файл шаблона отсутствует на сервере
   /api/calculate/upload_file/:
     post:
       operationId: calculate_upload_file_create
@@ -380,6 +452,33 @@ paths:
                 items:
                   $ref: '#/components/schemas/Product'
           description: ''
+    post:
+      operationId: products_create
+      description: API для работы с товарами.
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
   /api/products/{id}/:
     get:
       operationId: products_retrieve
@@ -404,6 +503,93 @@ paths:
               schema:
                 $ref: '#/components/schemas/Product'
           description: ''
+    put:
+      operationId: products_update
+      description: API для работы с товарами.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Товар.
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    patch:
+      operationId: products_partial_update
+      description: API для работы с товарами.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Товар.
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    delete:
+      operationId: products_destroy
+      description: API для работы с товарами.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Товар.
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
   /api/products/sync-excel/:
     post:
       operationId: products_sync_excel_create
@@ -661,23 +847,27 @@ components:
           maxLength: 50
         length_mm:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Длина (мм)
         width_mm:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Ширина (мм)
         height_mm:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Высота (мм)
         max_weight_kg:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Макс. вес (кг)
         volume_m3:
           type: number
@@ -710,6 +900,20 @@ components:
       - height
       - length
       - width
+    ExportNotFoundResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
+    ExportNotReadyResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
     FileUpload:
       type: object
       description: |-
@@ -798,8 +1002,9 @@ components:
             $ref: '#/components/schemas/PackedItemLayout'
         container_number:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         total_weight_kg:
           type: number
           format: double
@@ -843,48 +1048,33 @@ components:
           maxLength: 50
         length_mm:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Длина (мм)
         width_mm:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Ширина (мм)
         height_mm:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Высота (мм)
         max_weight_kg:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Макс. вес (кг)
         volume_m3:
           type: number
           format: double
           title: Полезный объем (м3)
-    Position:
-      type: object
-      properties:
-        x:
-          type: number
-          format: double
-          description: Координата X
-        y:
-          type: number
-          format: double
-          description: Координата Y
-        z:
-          type: number
-          format: double
-          description: Координата Z
-      required:
-      - x
-      - y
-      - z
-    Product:
+    PatchedProduct:
       type: object
       description: Сериализатор для модели Product.
       properties:
@@ -893,8 +1083,9 @@ components:
           readOnly: true
         product_id:
           type: integer
-          maximum: 2147483647
-          minimum: -2147483648
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
           title: ID
         sku:
           type: string
@@ -951,8 +1142,9 @@ components:
           title: Height Masterbox (mm)
         qty_of_masterbox:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
           title: Qty of master box
         masterbox_weight_kg:
           type: number
@@ -976,8 +1168,173 @@ components:
           title: Height Pallet (mm)
         qty_of_pallet:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
+        pallet_weight_kg:
+          type: number
+          format: double
+          nullable: true
+          title: Pallet Weight (kg)
+        order_requirement:
+          type: string
+          nullable: true
+          maxLength: 50
+        kj_flag:
+          type: string
+          nullable: true
+          title: K/j
+          maxLength: 50
+        si_flag:
+          type: string
+          nullable: true
+          title: SI
+          maxLength: 50
+        eol_flag:
+          type: string
+          nullable: true
+          title: EOL
+          maxLength: 50
+        gz_flag:
+          type: string
+          nullable: true
+          title: GZ
+          maxLength: 50
+        battery_flag:
+          type: boolean
+          title: Battery
+        is_dangerous:
+          type: boolean
+          nullable: true
+          title: Опасный груз
+        is_stackable:
+          type: boolean
+          nullable: true
+          title: Можно штабелировать
+        can_be_unpalletized:
+          type: boolean
+          nullable: true
+          title: Можно распалечивать
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    Position:
+      type: object
+      properties:
+        x:
+          type: number
+          format: double
+          description: Координата X
+        y:
+          type: number
+          format: double
+          description: Координата Y
+        z:
+          type: number
+          format: double
+          description: Координата Z
+      required:
+      - x
+      - y
+      - z
+    Product:
+      type: object
+      description: Сериализатор для модели Product.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          title: ID
+        sku:
+          type: string
+          nullable: true
+          maxLength: 100
+        name:
+          type: string
+          nullable: true
+          maxLength: 255
+        category:
+          type: string
+          nullable: true
+          maxLength: 100
+        ean:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        spec_name:
+          type: string
+          nullable: true
+          title: Spec-n Name
+          maxLength: 255
+        product_length_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Length Products (mm)
+        product_width_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Width Products (mm)
+        product_height_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Height Products (mm)
+        masterbox_length_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Length Masterbox (mm)
+        masterbox_width_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Width Masterbox (mm)
+        masterbox_height_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Height Masterbox (mm)
+        qty_of_masterbox:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          title: Qty of master box
+        masterbox_weight_kg:
+          type: number
+          format: double
+          nullable: true
+          title: Вес мастербокса (кг)
+        pallet_length_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Length Pallet (mm)
+        pallet_width_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Width Pallet (mm)
+        pallet_height_mm:
+          type: number
+          format: double
+          nullable: true
+          title: Height Pallet (mm)
+        qty_of_pallet:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
         pallet_weight_kg:
           type: number
           format: double
@@ -1037,8 +1394,9 @@ components:
           type: integer
         quantity:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 1
+          format: int64
           title: Количество
       required:
       - product_id
@@ -1072,6 +1430,13 @@ components:
       - message
       - status
       - updated
+    TemplateUnavailableResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
   securitySchemes:
     basicAuth:
       type: http

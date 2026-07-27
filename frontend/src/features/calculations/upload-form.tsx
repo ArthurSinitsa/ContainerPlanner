@@ -1,6 +1,7 @@
 import { type DragEvent, type FormEvent, useState } from "react";
 import { useToast } from "../../app/toast-context";
 import { api } from "../../lib/api";
+import { extractApiErrorMessage } from "../../lib/api-error";
 import { UploadIcon, FileDownIcon } from "../../components/icons";
 
 interface UploadFormProps {
@@ -49,11 +50,11 @@ export function UploadCalculationForm({ containerTypeId, isSubmitting, onSubmit 
     setDownloading(true);
     try {
       await api.downloadRequestTemplate();
-    } catch {
+    } catch (err) {
       toast.pushToast({
-        type: "info",
+        type: "error",
         title: "Шаблон недоступен",
-        message: "Серверная выгрузка шаблона ещё не реализована."
+        message: extractApiErrorMessage(err, "Не удалось скачать шаблон заявки.")
       });
     } finally {
       setDownloading(false);

@@ -111,6 +111,10 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Без этого браузер не отдаст фронту заголовок с именем файла при кросс-доменном
+# скачивании (.xlsx-шаблон и раскладка) — файл сохранится под fallback-именем.
+CORS_EXPOSE_HEADERS = ['Content-Disposition']
+
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases

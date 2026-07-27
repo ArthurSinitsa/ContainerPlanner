@@ -7,6 +7,7 @@ import { Layout3DViewer } from "../features/calculations/layout-3d-viewer";
 import { extractPackedBoxes } from "../features/calculations/extract-layout";
 import { useToast } from "../app/toast-context";
 import { api } from "../lib/api";
+import { extractApiErrorMessage } from "../lib/api-error";
 import type { CalculationRequestDetail, Product, StatusEnum } from "../lib/types";
 
 function StatusPill({ status }: { status: string }) {
@@ -122,11 +123,11 @@ export function CalculationPage() {
     setExporting(true);
     try {
       await api.downloadRequestExport(numericId);
-    } catch {
+    } catch (err) {
       toast.pushToast({
-        type: "info",
+        type: "error",
         title: "Раскладка недоступна",
-        message: "Серверная выгрузка раскладки ещё не реализована."
+        message: extractApiErrorMessage(err, "Не удалось сформировать файл раскладки.")
       });
     } finally {
       setExporting(false);

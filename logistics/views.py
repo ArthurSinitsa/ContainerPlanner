@@ -2,11 +2,13 @@ import logging
 import os
 from django.conf import settings
 from django.db import transaction
+from django.http import FileResponse
 
 logger = logging.getLogger(__name__)
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample, inline_serializer
 
 from .models import Product, ContainerType, RequestItem
@@ -14,8 +16,14 @@ from .serializers import (ProductSerializer, FileUploadSerializer, ContainerType
                           CalculationFileUploadSerializer, CalculationRequest, CalculationRequestCreateSerializer,
                           CalculationRequestListSerializer, CalculationRequestDetailSerializer,
                           CalculationStatusResponseSerializer, SyncResponseSerializer)
+from .services.exporter import PackingExcelExporter, PackingExportError
 from .services.loader import GoogleSheetsLoader, FileLoader
 from .tasks import run_packing_task
+
+XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+# Образец файла заявки, который отдаётся пользователю для заполнения
+REQUEST_TEMPLATE_PATH = settings.BASE_DIR / 'templates' / 'request_template.xlsx'
 
 class ProductViewSet(viewsets.ModelViewSet):
     """
@@ -495,3 +503,109 @@ class CalculationViewSet(viewsets.GenericViewSet):
             })
         except CalculationRequest.DoesNotExist:
             return Response({"error": "Заявка не найдена"}, status=status.HTTP_404_NOT_FOUND)
+
+    @extend_schema(
+        summary="Скачать шаблон заявки (.xlsx)",
+        description="Отдаёт образец файла, по формату которого нужно готовить заявку для загрузки.",
+        responses={
+            (200, XLSX_CONTENT_TYPE): OpenApiTypes.BINARY,
+            503: OpenApiResponse(
+                response=inline_serializer(
+                    name='TemplateUnavailableResponse',
+                    fields={'error': serializers.CharField()}
+                ),
+                description="Файл шаблона отсутствует на сервере"
+            )
+        }
+    )
+    @action(detail=False, methods=['get'], url_path='template')
+    def template(self, request):
+        """
+        GET /api/calculate/template/
+        Отдаёт образец .xlsx для создания заявки через файл.
+        """
+        if not REQUEST_TEMPLATE_PATH.is_file():
+            logger.error("Request template not found at: %s", REQUEST_TEMPLATE_PATH)
+            return Response(
+                {"error": "Шаблон заявки не найден на сервере. Обратитесь к администратору."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        return FileResponse(
+            REQUEST_TEMPLATE_PATH.open('rb'),
+            as_attachment=True,
+            filename='request_template.xlsx',
+            content_type=XLSX_CONTENT_TYPE
+        )
+
+    @extend_schema(
+        summary="Скачать раскладку заявки (.xlsx)",
+        description=(
+            "Генерирует и отдаёт .xlsx с раскладкой товаров по контейнерам: "
+            "лист «Сводка» (метрики каждого контейнера) и лист «Раскладка» "
+            "(ID, наименование, SKU и количество товара в каждом контейнере). "
+            "Доступно только для завершённых заявок."
+        ),
+        responses={
+            (200, XLSX_CONTENT_TYPE): OpenApiTypes.BINARY,
+            404: OpenApiResponse(
+                response=inline_serializer(
+                    name='ExportNotFoundResponse',
+                    fields={'error': serializers.CharField()}
+                ),
+                description="Заявка не найдена"
+            ),
+            409: OpenApiResponse(
+                response=inline_serializer(
+                    name='ExportNotReadyResponse',
+                    fields={'error': serializers.CharField()}
+                ),
+                description="Расчёт ещё не завершён либо завершился без результатов"
+            )
+        },
+        examples=[
+            OpenApiExample(
+                name="Расчёт ещё не завершён",
+                summary="Ошибка (409)",
+                value={"error": "Расчёт ещё не завершён (статус: Рассчитывается)."},
+                status_codes=["409"],
+                response_only=True,
+            ),
+        ]
+    )
+    @action(detail=True, methods=['get'], url_path='export')
+    def export(self, request, pk=None):
+        """
+        GET /api/calculate/{id}/export/
+        Отдаёт .xlsx с раскладкой товаров по контейнерам.
+        """
+        try:
+            calc_request = CalculationRequest.objects.get(pk=pk)
+        except CalculationRequest.DoesNotExist:
+            return Response({"error": f"Заявка с id {pk} не найдена"}, status=status.HTTP_404_NOT_FOUND)
+
+        if calc_request.status != 'COMPLETED':
+            return Response(
+                {"error": f"Расчёт ещё не завершён (статус: {calc_request.get_status_display()})."},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        exporter = PackingExcelExporter(calc_request)
+
+        try:
+            stream = exporter.build()
+        except PackingExportError as e:
+            return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+        except Exception as e:
+            logger.exception("Excel export failed for request_id=%s: %s", pk, e)
+            return Response(
+                {"error": "Не удалось сформировать файл раскладки. Подробности — в логах сервера."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return FileResponse(
+            stream,
+            as_attachment=True,
+            filename=exporter.filename,
+            content_type=XLSX_CONTENT_TYPE
+        )
